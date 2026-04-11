@@ -181,10 +181,10 @@ async function renderChart(rows, mode) {
     const sorted = Object.entries(cm).sort((a, b) => b[1] - a[1]).slice(0, 8);
 
     if (!sorted.length) {
-      document.getElementById('chart-legend').innerHTML = '';
-      const container = canvas?.closest('.chart-container');
-      if (container) container.innerHTML =
-        '<div style="font-size:13px;color:var(--tx3);text-align:center;padding:40px 0;">Sin datos este mes</div>';
+      const legend = document.getElementById('chart-legend');
+      if (legend) legend.innerHTML = '';
+      const wrap = document.getElementById('main-chart')?.parentElement;
+      if (wrap) wrap.innerHTML = '<div style="font-size:13px;color:var(--tx3);text-align:center;padding:40px 0;">Sin datos este mes</div>';
       return;
     }
 
