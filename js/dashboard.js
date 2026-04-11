@@ -59,7 +59,9 @@ async function loadDash() {
     const gas = rows
       .filter(r => r.tipo === 'gasto' && !r.es_ahorro)
       .reduce((acc, r) => {
-        const v = dashMode === 'yo' && r.es_compartido && r.user_id !== CU.id
+        // Comparar como string para evitar mismatch de tipos UUID vs number
+        const esMio = String(r.user_id) === String(CU.id);
+        const v = dashMode === 'yo' && r.es_compartido && !esMio
           ? (r.parte_contraparte || r.mi_parte)
           : r.mi_parte;
         return acc + (v || 0);
@@ -170,7 +172,7 @@ async function renderChart(rows, mode) {
     rows
       .filter(r => r.tipo === 'gasto' && !r.es_ahorro)
       .forEach(r => {
-        const v = mode === 'yo' && r.es_compartido && r.user_id !== CU.id
+        const v = mode === 'yo' && r.es_compartido && String(r.user_id) !== String(CU.id)
           ? (r.parte_contraparte || r.mi_parte)
           : r.mi_parte;
         if (r.categoria) cm[r.categoria] = (cm[r.categoria] || 0) + (v || 0);
@@ -179,7 +181,8 @@ async function renderChart(rows, mode) {
     const sorted = Object.entries(cm).sort((a, b) => b[1] - a[1]).slice(0, 8);
 
     if (!sorted.length) {
-      const container = canvas.closest('.chart-container');
+      document.getElementById('chart-legend').innerHTML = '';
+      const container = canvas?.closest('.chart-container');
       if (container) container.innerHTML =
         '<div style="font-size:13px;color:var(--tx3);text-align:center;padding:40px 0;">Sin datos este mes</div>';
       return;
@@ -226,7 +229,7 @@ async function renderChart(rows, mode) {
     rows
       .filter(r => r.tipo === 'gasto' && !r.es_ahorro)
       .forEach(r => {
-        const v = mode === 'yo' && r.es_compartido && r.user_id !== CU.id
+        const v = mode === 'yo' && r.es_compartido && String(r.user_id) !== String(CU.id)
           ? (r.parte_contraparte || r.mi_parte)
           : r.mi_parte;
         if (r.medio_pago) mm[r.medio_pago] = (mm[r.medio_pago] || 0) + (v || 0);
