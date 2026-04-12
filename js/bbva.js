@@ -52,7 +52,7 @@ Respondé SOLO con JSON válido sin markdown, con esta estructura:
     const GEMINI_KEY = 'AIzaSyCbpl-hez5GF5NSAEIQSQ4FOd2FeM3Ody8';
 
     const resp = await fetch(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent',
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent',
       {
         method: 'POST',
         headers: {
