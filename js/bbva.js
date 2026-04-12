@@ -39,6 +39,7 @@ Para cada consumo extraé:
 - categoria_sugerida: uno de estos exactos: Delivery, Suscripciones, Supermercado, Salidas/Ocio, Tecnología, Ropa y calzado, Salud, Transporte, Educación, Regalo, Servicios, Otro
 - division_sugerida: uno de estos: personal, prop, mitad, novia — basate en el comercio (Spotify/Netflix=personal, Pedidos Ya/Rappi=personal, MERPAGO con nombre de persona=novia)
 - es_ambiguo: true si no podés determinar claramente la categoría o división
+- fecha_vencimiento: fecha límite de pago del resumen (formato YYYY-MM-DD)
 
 También extraé:
 - periodo: el período del resumen (ej: "Marzo 2026")  
@@ -46,7 +47,7 @@ También extraé:
 - total_intereses: suma de intereses + punitorios + impuestos
 
 Respondé SOLO con JSON válido sin markdown, con esta estructura:
-{"periodo":"...","saldo_total":0,"total_intereses":0,"consumos":[{"fecha":"...","descripcion":"...","monto_pesos":0,"monto_dolares":0,"es_cuota":false,"cuota_actual":0,"cuota_total":0,"categoria_sugerida":"...","division_sugerida":"...","es_ambiguo":false}]}`;
+{"periodo":"...","saldo_total":0,"total_intereses":0,fecha_vencimiento":"...","consumos":[{"fecha":"...","descripcion":"...","monto_pesos":0,"monto_dolares":0,"es_cuota":false,"cuota_actual":0,"cuota_total":0,"categoria_sugerida":"...","division_sugerida":"...","es_ambiguo":false}]}`;
 
     const resp = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -68,7 +69,12 @@ Respondé SOLO con JSON válido sin markdown, con esta estructura:
       })
     });
 
-    if (!resp.ok) { usarDatosBBVAManual(); return; }
+    if (!resp.ok) {
+      hide('bbva-loading');
+      show('bbva-upload-step');
+      toast('Error al procesar el PDF. Intentá de nuevo.', 'err');
+      return;
+    }
 
     const data = await resp.json();
     const text = data.content?.find(c => c.type === 'text')?.text || '';
@@ -79,46 +85,25 @@ Respondé SOLO con JSON válido sin markdown, con esta estructura:
       parsed = null;
     }
 
-    if (!parsed) { usarDatosBBVAManual(); return; }
+    if (!parsed) {
+      hide('bbva-loading');
+      show('bbva-upload-step');
+      toast('No se pudo leer la respuesta de Claude. Intentá de nuevo.', 'err');
+      return;
+    }
     mostrarRevisionBBVA(parsed);
 
   } catch (e) {
     console.error(e);
-    usarDatosBBVAManual();
+    hide('bbva-loading');
+    show('bbva-upload-step');
+    toast('Error inesperado al procesar el PDF.', 'err');
   }
-}
-
-// ── Fallback con datos hardcodeados del resumen conocido ─
-function usarDatosBBVAManual() {
-  const parsed = {
-    periodo        : 'Marzo 2026',
-    saldo_total    : 1676354.52,
-    total_intereses: 707263.05,
-    consumos: [
-      { fecha: '2025-12-23', descripcion: 'MULTIPLOS',                   monto_pesos: 31966.66, monto_dolares: 0,     es_cuota: true,  cuota_actual: 3, cuota_total: 3, categoria_sugerida: 'Otro',         division_sugerida: 'personal', es_ambiguo: true },
-      { fecha: '2026-02-06', descripcion: 'FACIL HOME',                  monto_pesos: 21268.64, monto_dolares: 0,     es_cuota: true,  cuota_actual: 2, cuota_total: 3, categoria_sugerida: 'Servicios',     division_sugerida: 'personal', es_ambiguo: true },
-      { fecha: '2026-02-20', descripcion: 'MERPAGO*VENTIVINOALA',        monto_pesos: 116480,   monto_dolares: 0,     es_cuota: false, cuota_actual: 0, cuota_total: 0, categoria_sugerida: 'Salidas/Ocio',  division_sugerida: 'personal', es_ambiguo: true },
-      { fecha: '2026-02-21', descripcion: 'MERPAGO*ABRILMAGALITONELL',   monto_pesos: 58844.50, monto_dolares: 0,     es_cuota: false, cuota_actual: 0, cuota_total: 0, categoria_sugerida: 'Otro',         division_sugerida: 'novia',    es_ambiguo: false },
-      { fecha: '2026-02-21', descripcion: 'Spotify',                     monto_pesos: 0,        monto_dolares: 2.40,  es_cuota: false, cuota_actual: 0, cuota_total: 0, categoria_sugerida: 'Suscripciones', division_sugerida: 'personal', es_ambiguo: false },
-      { fecha: '2026-02-23', descripcion: 'MERPAGO*ABRILMAGALITONELL',   monto_pesos: 139087,   monto_dolares: 0,     es_cuota: false, cuota_actual: 0, cuota_total: 0, categoria_sugerida: 'Otro',         division_sugerida: 'novia',    es_ambiguo: false },
-      { fecha: '2026-02-23', descripcion: 'MERPAGO*ABRILMAGALITONELL',   monto_pesos: 53495,    monto_dolares: 0,     es_cuota: false, cuota_actual: 0, cuota_total: 0, categoria_sugerida: 'Otro',         division_sugerida: 'novia',    es_ambiguo: false },
-      { fecha: '2026-02-23', descripcion: 'NETFLIX',                     monto_pesos: 0,        monto_dolares: 14.89, es_cuota: false, cuota_actual: 0, cuota_total: 0, categoria_sugerida: 'Suscripciones', division_sugerida: 'personal', es_ambiguo: false },
-      { fecha: '2026-02-24', descripcion: 'MERPAGO*ABRILMAGALITONELL',   monto_pesos: 11148.36, monto_dolares: 0,     es_cuota: false, cuota_actual: 0, cuota_total: 0, categoria_sugerida: 'Otro',         division_sugerida: 'novia',    es_ambiguo: false },
-      { fecha: '2026-02-24', descripcion: 'MERPAGO*LUCIANOMARTINARAO',   monto_pesos: 22467.90, monto_dolares: 0,     es_cuota: false, cuota_actual: 0, cuota_total: 0, categoria_sugerida: 'Otro',         division_sugerida: 'personal', es_ambiguo: true },
-      { fecha: '2026-02-24', descripcion: 'Pedidos Ya Valgo RE',         monto_pesos: 14629,    monto_dolares: 0,     es_cuota: false, cuota_actual: 0, cuota_total: 0, categoria_sugerida: 'Delivery',      division_sugerida: 'personal', es_ambiguo: false },
-      { fecha: '2026-02-25', descripcion: 'Pedidos Ya Propina',          monto_pesos: 650,      monto_dolares: 0,     es_cuota: false, cuota_actual: 0, cuota_total: 0, categoria_sugerida: 'Delivery',      division_sugerida: 'personal', es_ambiguo: false },
-      { fecha: '2026-03-01', descripcion: 'Pedidos Ya Forni',            monto_pesos: 16966.50, monto_dolares: 0,     es_cuota: false, cuota_actual: 0, cuota_total: 0, categoria_sugerida: 'Delivery',      division_sugerida: 'personal', es_ambiguo: false },
-      { fecha: '2026-03-02', descripcion: 'Pedidos Ya Propina',          monto_pesos: 650,      monto_dolares: 0,     es_cuota: false, cuota_actual: 0, cuota_total: 0, categoria_sugerida: 'Delivery',      division_sugerida: 'personal', es_ambiguo: false },
-      { fecha: '2026-02-26', descripcion: 'RAPPI',                       monto_pesos: 33750,    monto_dolares: 0,     es_cuota: false, cuota_actual: 0, cuota_total: 0, categoria_sugerida: 'Delivery',      division_sugerida: 'personal', es_ambiguo: false },
-      { fecha: '2026-03-08', descripcion: 'Spotify',                     monto_pesos: 0,        monto_dolares: 2.35,  es_cuota: false, cuota_actual: 0, cuota_total: 0, categoria_sugerida: 'Suscripciones', division_sugerida: 'personal', es_ambiguo: false },
-      { fecha: '2026-03-19', descripcion: 'Spotify',                     monto_pesos: 0,        monto_dolares: 2.38,  es_cuota: false, cuota_actual: 0, cuota_total: 0, categoria_sugerida: 'Suscripciones', division_sugerida: 'personal', es_ambiguo: false }
-    ]
-  };
-  mostrarRevisionBBVA(parsed);
 }
 
 // ── Mostrar revisión de consumos ──────────────────────
 function mostrarRevisionBBVA(data) {
+  window._bbvaVcto = data.fecha_vencimiento || null;
   bbvaItems = data.consumos.map((c, i) => ({
     ...c,
     idx            : i,
@@ -199,6 +184,9 @@ function bbvaSetDiv(idx, div, el) {
 
 // ── Guardar todos los clasificados ───────────────────
 async function guardarBBVA() {
+  const vcto = window._bbvaVcto;
+  if (!vcto) { toast('No se encontró fecha de vencimiento en el resumen', 'err'); return; }
+
   const toSave = bbvaItems.filter(i => !i.es_cuota && !i.guardado);
   if (!toSave.length) { toast('Todos los consumos ya fueron guardados', 'warn'); return; }
 
