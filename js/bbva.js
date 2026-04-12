@@ -22,7 +22,7 @@ async function procesarBBVA() {
   try {
     const base64 = await new Promise((res, rej) => {
       const reader = new FileReader();
-      reader.onload  = () => res(reader.result.split(',')[1]);
+      reader.onload = () => res(reader.result.split(',')[1]);
       reader.onerror = rej;
       reader.readAsDataURL(file);
     });
@@ -33,51 +33,63 @@ Para cada consumo extraé:
 - fecha (formato YYYY-MM-DD)
 - descripcion (nombre del comercio limpio)
 - monto_pesos (número sin signos, 0 si es solo en dolares)
-- monto_dolares (número sin signos, 0 si no aplica)  
+- monto_dolares (número sin signos, 0 si no aplica)
 - es_cuota (true si dice C.XX/XX en la descripción)
 - cuota_actual y cuota_total (números si es_cuota es true)
 - categoria_sugerida: uno de estos exactos: Delivery, Suscripciones, Supermercado, Salidas/Ocio, Tecnología, Ropa y calzado, Salud, Transporte, Educación, Regalo, Servicios, Otro
 - division_sugerida: uno de estos: personal, prop, mitad, novia — basate en el comercio (Spotify/Netflix=personal, Pedidos Ya/Rappi=personal, MERPAGO con nombre de persona=novia)
 - es_ambiguo: true si no podés determinar claramente la categoría o división
-- fecha_vencimiento: fecha límite de pago del resumen (formato YYYY-MM-DD)
 
 También extraé:
-- periodo: el período del resumen (ej: "Marzo 2026")  
+- periodo: el período del resumen (ej: "Marzo 2026")
 - saldo_total: el saldo total en pesos
 - total_intereses: suma de intereses + punitorios + impuestos
+- fecha_vencimiento: fecha límite de pago del resumen (formato YYYY-MM-DD)
 
 Respondé SOLO con JSON válido sin markdown, con esta estructura:
-{"periodo":"...","saldo_total":0,"total_intereses":0,fecha_vencimiento":"...","consumos":[{"fecha":"...","descripcion":"...","monto_pesos":0,"monto_dolares":0,"es_cuota":false,"cuota_actual":0,"cuota_total":0,"categoria_sugerida":"...","division_sugerida":"...","es_ambiguo":false}]}`;
+{"periodo":"...","saldo_total":0,"total_intereses":0,"fecha_vencimiento":"...","consumos":[{"fecha":"...","descripcion":"...","monto_pesos":0,"monto_dolares":0,"es_cuota":false,"cuota_actual":0,"cuota_total":0,"categoria_sugerida":"...","division_sugerida":"...","es_ambiguo":false}]}`;
 
-    const resp = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type'                       : 'application/json',
-        'anthropic-version'                  : '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true'
-      },
-      body: JSON.stringify({
-        model      : 'claude-sonnet-4-20250514',
-        max_tokens : 4000,
-        messages   : [{
-          role   : 'user',
-          content: [
-            { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } },
-            { type: 'text',     text: prompt }
-          ]
-        }]
-      })
-    });
+    const GEMINI_KEY = 'AIzaSyCbpl-hez5GF5NSAEIQSQ4FOd2FeM3Ody8';
+
+    const resp = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{
+            parts: [
+              { inline_data: { mime_type: 'application/pdf', data: base64 } },
+              { text: prompt }
+            ]
+          }],
+          generationConfig: {
+            temperature: 0.1,
+            maxOutputTokens: 4000
+          }
+        })
+      }
+    );
 
     if (!resp.ok) {
+      const err = await resp.json();
+      console.error('Gemini error:', err);
       hide('bbva-loading');
       show('bbva-upload-step');
-      toast('Error al procesar el PDF. Intentá de nuevo.', 'err');
+      toast('Error al procesar el PDF: ' + (err.error?.message || 'intentá de nuevo'), 'err');
       return;
     }
 
     const data = await resp.json();
-    const text = data.content?.find(c => c.type === 'text')?.text || '';
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+    if (!text) {
+      hide('bbva-loading');
+      show('bbva-upload-step');
+      toast('Gemini no devolvió respuesta. Intentá de nuevo.', 'err');
+      return;
+    }
+
     let parsed;
     try {
       parsed = JSON.parse(text.replace(/```json|```/g, '').trim());
@@ -85,12 +97,13 @@ Respondé SOLO con JSON válido sin markdown, con esta estructura:
       parsed = null;
     }
 
-    if (!parsed) {
+    if (!parsed || !parsed.consumos) {
       hide('bbva-loading');
       show('bbva-upload-step');
-      toast('No se pudo leer la respuesta de Claude. Intentá de nuevo.', 'err');
+      toast('No se pudo interpretar el resumen. Intentá de nuevo.', 'err');
       return;
     }
+
     mostrarRevisionBBVA(parsed);
 
   } catch (e) {
