@@ -52,7 +52,7 @@ Respondé SOLO con JSON válido sin markdown, con esta estructura:
     const GEMINI_KEY = 'AIzaSyCbpl-hez5GF5NSAEIQSQ4FOd2FeM3Ody8';
 
     const resp = await fetch(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent',
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent',
       {
         method: 'POST',
         headers: {
@@ -68,7 +68,7 @@ Respondé SOLO con JSON válido sin markdown, con esta estructura:
           }],
           generationConfig: {
             temperature: 0.1,
-            maxOutputTokens: 4000
+            maxOutputTokens: 8192
           }
         })
       }
