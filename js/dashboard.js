@@ -64,7 +64,7 @@ async function loadDash() {
         const v = dashMode === 'yo' && r.es_compartido && !esMio
           ? (r.parte_contraparte || r.mi_parte)
           : r.mi_parte;
-        return acc + (v || 0);
+        return acc + (parseFloat(v) || 0);
       }, 0);
 
     // Servicios pendientes del mes actual

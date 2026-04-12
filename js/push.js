@@ -2,20 +2,6 @@
 //  push.js — Web Push notifications
 // ══════════════════════════════════════════════════════
 
-const SW_CODE = `
-self.addEventListener('push', e => {
-  const d = e.data?.json() || {};
-  self.registration.showNotification(d.title || 'Finanzas', {
-    body : d.body  || '',
-    icon : '/favicon.ico',
-    badge: '/favicon.ico'
-  });
-});
-self.addEventListener('notificationclick', e => {
-  e.notification.close();
-  e.waitUntil(clients.openWindow('/'));
-});
-`;
 
 function checkPushStatus() {
   const statusEl = document.getElementById('push-status');
@@ -49,9 +35,7 @@ async function enablePush() {
     // Registrar service worker en blob para notificaciones de fondo
     if ('serviceWorker' in navigator) {
       try {
-        await navigator.serviceWorker.register(
-          'data:application/javascript,' + encodeURIComponent(SW_CODE)
-        );
+        await navigator.serviceWorker.register('./sw.js');
       } catch { /* ignorar si el browser no lo permite */ }
     }
   } else {
