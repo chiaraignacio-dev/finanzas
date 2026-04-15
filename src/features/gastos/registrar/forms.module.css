@@ -1,0 +1,57 @@
+.formCard {
+  margin : 0 16px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.pill {
+  display        : flex;
+  justify-content: space-between;
+  align-items    : center;
+  background     : rgba(59, 130, 246, 0.1);
+  border         : 1px solid rgba(59, 130, 246, 0.25);
+  border-radius  : var(--rs);
+  padding        : 9px 12px;
+  font-size      : 13px;
+  color          : var(--ac2);
+}
+
+.pill strong { font-family: var(--font-mono); font-size: 15px; }
+
+.alert, .alertInfo {
+  padding      : 10px 13px;
+  border-radius: var(--rs);
+  font-size    : 13px;
+  line-height  : 1.5;
+}
+
+.alert {
+  background: rgba(59, 130, 246, 0.1);
+  border    : 1px solid rgba(59, 130, 246, 0.25);
+  color     : var(--ac2);
+}
+
+.alertInfo {
+  background: rgba(59, 130, 246, 0.1);
+  border    : 1px solid rgba(59, 130, 246, 0.25);
+  color     : var(--ac2);
+}
+
+.alertDanger {
+  padding      : 10px 13px;
+  border-radius: var(--rs);
+  font-size    : 13px;
+  background   : rgba(239, 68, 68, 0.1);
+  border       : 1px solid rgba(239, 68, 68, 0.25);
+  color        : #FCA5A5;
+}
+
+.error {
+  font-size    : 12px;
+  color        : var(--rd);
+  background   : rgba(239, 68, 68, 0.08);
+  border       : 1px solid rgba(239, 68, 68, 0.25);
+  border-radius: var(--rs);
+  padding      : 8px 12px;
+}

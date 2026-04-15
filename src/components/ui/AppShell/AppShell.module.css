@@ -1,0 +1,26 @@
+.shell {
+  display       : flex;
+  flex-direction: column;
+  height        : 100vh;
+  height        : 100dvh;
+  max-width     : 480px;
+  margin        : 0 auto;
+}
+
+.screen {
+  flex      : 1;
+  overflow-y: auto;
+  padding   : 0 0 84px;
+  scrollbar-width: none;
+}
+
+.screen::-webkit-scrollbar { display: none; }
+
+.placeholder {
+  display        : flex;
+  flex-direction : column;
+  align-items    : center;
+  justify-content: center;
+  height         : 100%;
+  color          : var(--tx2);
+}

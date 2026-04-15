@@ -1,0 +1,16 @@
+.card {
+  background   : var(--sf);
+  border       : 1px solid var(--bd);
+  border-radius: var(--r);
+}
+
+/* ── Variantes ──────────────────────────── */
+.pending { border-color: rgba(245, 158, 11, 0.35); }
+.success { border-color: rgba(16, 185, 129, 0.35); }
+.danger  { border-color: rgba(239, 68, 68, 0.35);  }
+
+/* ── Padding ────────────────────────────── */
+.pad-none { padding: 0; }
+.pad-sm   { padding: 10px 12px; }
+.pad-md   { padding: 16px; }
+.pad-lg   { padding: 24px; }
