@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { PageHeader } from '../../../components/ui/PageHeader';
+import { PageHeader }   from '../../../components/ui/PageHeader';
 import { GastoForm }    from './GastoForm';
 import { DeudaForm }    from './DeudaForm';
 import { AhorroForm }   from './AhorroForm';
 import { IngresoForm }  from './IngresoForm';
 import { ServicioForm } from './ServicioForm';
+import { ResumenForm }  from '../../tarjetas/ResumenForm';
 import type { Usuario, MedioPago, Meta } from '../../../lib/types';
 import { FLAB } from '../../../lib/utils';
 import styles from './Registrar.module.css';
@@ -17,14 +18,15 @@ interface Props {
   onToast: (msg: string, type?: 'ok' | 'err' | 'warn') => void;
 }
 
-type TipoForm = 'gasto' | 'deuda' | 'ahorro' | 'ingreso' | 'servicio' | null;
+type TipoForm = 'gasto' | 'deuda' | 'ahorro' | 'ingreso' | 'servicio' | 'resumen' | null;
 
 const TIPOS = [
-  { id: 'gasto',    icon: '🛒', label: 'Gasto',        sub: 'Compras, delivery, ocio' },
-  { id: 'deuda',    icon: '💳', label: 'Pago deuda',   sub: 'BBVA, Uala, MP' },
-  { id: 'ahorro',   icon: '🎯', label: 'Ahorro',       sub: 'Metas personales' },
-  { id: 'ingreso',  icon: '💰', label: 'Ingreso extra', sub: 'Changas, ventas' },
-  { id: 'servicio', icon: '🔌', label: 'Servicio',     sub: 'Luz, agua, gas…' },
+  { id: 'gasto',    icon: '🛒', label: 'Gasto',           sub: 'Compras, delivery, ocio' },
+  { id: 'deuda',    icon: '💳', label: 'Pago deuda',      sub: 'BBVA, Uala, MP' },
+  { id: 'ahorro',   icon: '🎯', label: 'Ahorro',          sub: 'Metas personales' },
+  { id: 'ingreso',  icon: '💰', label: 'Ingreso extra',   sub: 'Changas, ventas' },
+  { id: 'servicio', icon: '🔌', label: 'Servicio',        sub: 'Luz, agua, gas…' },
+  { id: 'resumen',  icon: '📄', label: 'Resumen tarjeta', sub: 'Cargá el resumen mensual' },
 ] as const;
 
 export function Registrar({ user, medios, metas, prop, onToast }: Props) {
@@ -35,7 +37,7 @@ export function Registrar({ user, medios, metas, prop, onToast }: Props) {
     onToast(msg);
     setTipo(null);
     setSuccess(true);
-    setTimeout(() => setSuccess(false), 100);
+    setTimeout(() => setSuccess(false), 2000);
   }
 
   return (
@@ -51,17 +53,12 @@ export function Registrar({ user, medios, metas, prop, onToast }: Props) {
         }
       />
 
-      {/* Selector de tipo */}
-      {!tipo && (
+      {!tipo && !success && (
         <>
           <div className={styles.slab}>¿Qué movimiento?</div>
           <div className={styles.grid}>
             {TIPOS.map(t => (
-              <button
-                key      ={t.id}
-                className={styles.typeBtn}
-                onClick  ={() => setTipo(t.id)}
-              >
+              <button key={t.id} className={styles.typeBtn} onClick={() => setTipo(t.id)}>
                 <span className={styles.typeIcon}>{t.icon}</span>
                 <span className={styles.typeLabel}>{t.label}</span>
                 <span className={styles.typeSub}>{t.sub}</span>
@@ -71,39 +68,22 @@ export function Registrar({ user, medios, metas, prop, onToast }: Props) {
         </>
       )}
 
-      {/* Formulario activo */}
-      {tipo === 'gasto' && (
-        <>
-          <BackBtn onClick={() => setTipo(null)} />
-          <GastoForm   user={user} medios={medios} prop={prop} onSuccess={handleSuccess} />
-        </>
-      )}
-      {tipo === 'deuda' && (
-        <>
-          <BackBtn onClick={() => setTipo(null)} />
-          <DeudaForm   user={user} onSuccess={handleSuccess} />
-        </>
-      )}
-      {tipo === 'ahorro' && (
-        <>
-          <BackBtn onClick={() => setTipo(null)} />
-          <AhorroForm  user={user} metas={metas} onSuccess={handleSuccess} />
-        </>
-      )}
-      {tipo === 'ingreso' && (
-        <>
-          <BackBtn onClick={() => setTipo(null)} />
-          <IngresoForm user={user} onSuccess={handleSuccess} />
-        </>
-      )}
-      {tipo === 'servicio' && (
-        <>
-          <BackBtn onClick={() => setTipo(null)} />
-          <ServicioForm user={user} prop={prop} onSuccess={handleSuccess} />
-        </>
+      {tipo && <BackBtn onClick={() => setTipo(null)} />}
+
+      {tipo === 'gasto'    && <GastoForm    user={user} medios={medios} prop={prop} onSuccess={handleSuccess} />}
+      {tipo === 'deuda'    && <DeudaForm    user={user} onSuccess={handleSuccess} />}
+      {tipo === 'ahorro'   && <AhorroForm   user={user} metas={metas}  onSuccess={handleSuccess} />}
+      {tipo === 'ingreso'  && <IngresoForm  user={user} onSuccess={handleSuccess} />}
+      {tipo === 'servicio' && <ServicioForm user={user} prop={prop}    onSuccess={handleSuccess} />}
+      {tipo === 'resumen'  && (
+        <ResumenForm
+          user   ={user}
+          medios ={medios}
+          onToast={onToast}
+          onDone ={() => handleSuccess('Resumen cargado ✓')}
+        />
       )}
 
-      {/* Éxito flash */}
       {success && !tipo && (
         <div className={styles.successFlash}>
           <div style={{ fontSize: 48 }}>✅</div>
@@ -115,9 +95,5 @@ export function Registrar({ user, medios, metas, prop, onToast }: Props) {
 }
 
 function BackBtn({ onClick }: { onClick: () => void }) {
-  return (
-    <button className={styles.backBtn} onClick={onClick}>
-      ← Volver
-    </button>
-  );
+  return <button className={styles.backBtn} onClick={onClick}>← Volver</button>;
 }

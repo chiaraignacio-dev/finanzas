@@ -28,3 +28,18 @@
 .barPct  { font-size: 11px; color: var(--tx3); margin-top: 4px; }
 
 .empty { font-size: 13px; color: var(--tx3); }
+
+.faltaBanner {
+  display        : flex;
+  justify-content: space-between;
+  align-items    : center;
+  margin         : 0 16px 12px;
+  padding        : 12px 14px;
+  background     : rgba(245, 158, 11, 0.08);
+  border         : 1px solid rgba(245, 158, 11, 0.25);
+  border-radius  : var(--r);
+}
+
+.faltaLabel { font-size: 13px; font-weight: 600; color: var(--am); }
+.faltaSub   { font-size: 11px; color: var(--tx3); margin-top: 2px; }
+.faltaAmt   { font-size: 18px; font-weight: 700; font-family: var(--font-mono); color: var(--am); }

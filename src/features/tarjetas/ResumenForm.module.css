@@ -1,0 +1,123 @@
+.wrap { display: flex; flex-direction: column; gap: 0; }
+
+.section {
+  margin : 0 16px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sectionTitle {
+  font-size     : 11px;
+  font-weight   : 600;
+  color         : var(--tx3);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  display       : flex;
+  align-items   : center;
+  gap           : 6px;
+}
+
+.hint {
+  font-size  : 12px;
+  color      : var(--tx3);
+  line-height: 1.5;
+}
+
+.alert {
+  padding      : 10px 13px;
+  border-radius: var(--rs);
+  font-size    : 13px;
+  line-height  : 1.5;
+  background   : rgba(59, 130, 246, 0.1);
+  border       : 1px solid rgba(59, 130, 246, 0.25);
+  color        : var(--ac2);
+}
+
+.consumoForm {
+  display       : flex;
+  flex-direction: column;
+  gap           : 10px;
+  padding       : 12px;
+  background    : var(--sf2);
+  border-radius : var(--rs);
+  border        : 1px solid var(--bd);
+}
+
+.consumoList {
+  display       : flex;
+  flex-direction: column;
+  gap           : 0;
+  border        : 1px solid var(--bd);
+  border-radius : var(--rs);
+  overflow      : hidden;
+}
+
+.consumoItem {
+  display        : flex;
+  align-items    : center;
+  justify-content: space-between;
+  padding        : 10px 12px;
+  border-bottom  : 1px solid var(--bd);
+  background     : var(--sf2);
+}
+
+.consumoInfo  { flex: 1; min-width: 0; }
+.consumoDesc  { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.consumoMeta  { font-size: 11px; color: var(--tx3); margin-top: 2px; }
+.consumoRight { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.consumoMonto { font-size: 13px; font-weight: 600; font-family: var(--font-mono); color: var(--rd); }
+
+.removeBtn {
+  background: none;
+  border    : none;
+  color     : var(--tx3);
+  cursor    : pointer;
+  font-size : 12px;
+  padding   : 2px 4px;
+}
+
+.consumoTotal {
+  display        : flex;
+  justify-content: space-between;
+  padding        : 10px 12px;
+  background     : var(--sf3);
+  font-size      : 12px;
+  font-weight    : 600;
+  color          : var(--tx2);
+}
+
+.resumenFinal {
+  margin        : 0 16px 12px;
+  padding       : 14px;
+  background    : var(--sf);
+  border        : 1.5px solid rgba(239, 68, 68, 0.3);
+  border-radius : var(--r);
+  display       : flex;
+  flex-direction: column;
+  gap           : 6px;
+}
+
+.resumenRow {
+  display        : flex;
+  justify-content: space-between;
+  align-items    : center;
+  font-size      : 13px;
+  color          : var(--tx2);
+}
+
+.resumenTotal {
+  font-size  : 20px;
+  font-family: var(--font-mono);
+  color      : var(--rd);
+}
+
+.error {
+  margin       : 0 16px 8px;
+  font-size    : 12px;
+  color        : var(--rd);
+  background   : rgba(239, 68, 68, 0.08);
+  border       : 1px solid rgba(239, 68, 68, 0.25);
+  border-radius: var(--rs);
+  padding      : 8px 12px;
+}

@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Card } from '../../components/ui';
-import { PageHeader } from '../../components/ui';
+import { PageHeader } from '../../components/ui/PageHeader';
 import { sbGet } from '../../lib/supabase';
 import { fmt, fmtK, FLAB, DESDE_MES } from '../../lib/utils';
-import type { Usuario, Movimiento, Servicio, Meta } from '../../lib/types';
+import type { Usuario, Movimiento, Servicio, Meta, ResumenTarjeta } from '../../lib/types';
 import styles from './Dashboard.module.css';
 
 interface Props {
@@ -22,34 +22,28 @@ export function Dashboard({ user, allUsers }: Props) {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const abril    = Object.values(allUsers).find(u => u.username !== user.username);
-      const uData    = allUsers[user.username];
+      const uData = allUsers[user.username];
+      const abril = Object.values(allUsers).find(u => u.username !== user.username);
       const myIng    = (uData?.ingreso_fijo || 0) || ((uData?.ingreso_q1 || 0) + (uData?.ingreso_q2 || 0));
       const abrilIng = (abril?.ingreso_fijo || 0) || ((abril?.ingreso_q1 || 0) + (abril?.ingreso_q2 || 0));
 
-      let rows: Movimiento[], srv: Servicio[], ingTotal: number;
+      let rows: Movimiento[], ingTotal: number;
 
       if (mode === 'yo') {
-        const [mios, comp, s] = await Promise.all([
+        const [mios, comp] = await Promise.all([
           sbGet<Movimiento>('movimientos', { user_id: `eq.${user.id}`, estado: 'eq.confirmado', fecha: `gte.${DESDE_MES}` }),
           sbGet<Movimiento>('movimientos', { es_compartido: 'eq.true', estado: 'eq.confirmado', user_id: `neq.${user.id}`, fecha: `gte.${DESDE_MES}` }),
-          sbGet<Servicio>('servicios', { user_id: `eq.${user.id}`, estado: 'eq.pendiente' }),
         ]);
         rows = [...mios, ...comp];
-        srv  = s;
         ingTotal = myIng;
       } else {
-        const [all, s] = await Promise.all([
-          sbGet<Movimiento>('movimientos', { estado: 'eq.confirmado', fecha: `gte.${DESDE_MES}` }),
-          sbGet<Servicio>('servicios', { estado: 'eq.pendiente' }),
-        ]);
+        const all = await sbGet<Movimiento>('movimientos', { estado: 'eq.confirmado', fecha: `gte.${DESDE_MES}` });
         const seen = new Set<string>();
         rows = all.filter(r => { if (r.es_compartido) { if (seen.has(r.id)) return false; seen.add(r.id); } return true; });
-        srv  = s;
         ingTotal = myIng + abrilIng;
       }
 
-      // Gastos
+      // Gastado = movimientos pagados/confirmados (NO incluye deudas pendientes)
       const gasTotal = rows
         .filter(r => r.tipo === 'gasto' && !r.es_ahorro)
         .reduce((acc, r) => {
@@ -60,20 +54,34 @@ export function Dashboard({ user, allUsers }: Props) {
           return acc + (v || 0);
         }, 0);
 
-      // Servicios del mes
+      // Pagos de deuda ya realizados (también descuentan del disponible)
+      const pagosDeuda = rows
+        .filter(r => r.tipo === 'deuda')
+        .reduce((acc, r) => acc + parseFloat(r.mi_parte), 0);
+
+      // Falta pagar = servicios pendientes + saldo de resumenes tarjeta (informativo)
+      const [srv, resumenes] = await Promise.all([
+        sbGet<Servicio>('servicios', { user_id: `eq.${user.id}`, estado: 'eq.pendiente' }),
+        sbGet<ResumenTarjeta>('resumenes_tarjeta', { user_id: `eq.${user.id}`, estado: 'neq.pagado' }),
+      ]);
+
       const hoy    = new Date().toISOString().split('T')[0];
       const mesMes = DESDE_MES.substring(0, 7);
-      const srvMes = srv.filter(s => {
-        if (!s.fecha_vencimiento) return false;
-        return s.fecha_vencimiento.substring(0, 7) === mesMes || s.fecha_vencimiento <= hoy;
-      });
-      const faltaTotal = srvMes.reduce((a, s) => a + parseFloat(s.mi_parte || '0'), 0);
+      const srvPendiente = srv
+        .filter(s => s.fecha_vencimiento.substring(0, 7) === mesMes || s.fecha_vencimiento <= hoy)
+        .reduce((a, s) => a + parseFloat(s.mi_parte || '0'), 0);
 
-      // Metas
+      const deudaTarjeta = resumenes.reduce((a, r) =>
+        a + parseFloat(r.monto_total) - parseFloat(r.monto_pagado), 0);
+
+      const faltaTotal = srvPendiente + deudaTarjeta;
+
+      // Disponible = Ingreso - Gastado - Pagos de deuda ya realizados
+      // Falta pagar es informativo, NO resta del disponible hasta que se pague
       const m = await sbGet<Meta>('metas', { user_id: `eq.${user.id}`, activa: 'eq.true' });
 
       setIng(ingTotal);
-      setGas(gasTotal);
+      setGas(gasTotal + pagosDeuda);
       setFalta(faltaTotal);
       setMetas(m);
     } finally {
@@ -83,7 +91,7 @@ export function Dashboard({ user, allUsers }: Props) {
 
   useEffect(() => { load(); }, [load]);
 
-  const dis = ing - gas - falta;
+  const dis = ing - gas;
   const pct = ing ? gas / ing : 0;
   const sem = pct < 0.65 ? { icon: '🟢', title: 'Finanzas saludables',  sub: `Gastás el ${(pct*100).toFixed(0)}% del ingreso.` }
             : pct < 0.85 ? { icon: '🟡', title: 'Atención',             sub: `Gastás el ${(pct*100).toFixed(0)}%. Reducí gastos variables.` }
@@ -98,7 +106,6 @@ export function Dashboard({ user, allUsers }: Props) {
         <button className={`${styles.tb} ${mode === 'hogar' ? styles.active : ''}`} onClick={() => setMode('hogar')}>🏠 Hogar</button>
       </div>
 
-      {/* Stats */}
       <div className={styles.grid}>
         <div className={styles.stat}>
           <div className={styles.statLabel}>Ingreso</div>
@@ -110,24 +117,34 @@ export function Dashboard({ user, allUsers }: Props) {
           <div className={`${styles.statVal} ${styles.red}`}>{loading ? '…' : fmtK(gas)}</div>
           <div className={styles.statSub}>{ing ? `${(pct*100).toFixed(0)}% del ingreso` : '—'}</div>
         </div>
-        <div className={styles.stat}>
-          <div className={styles.statLabel}>Falta pagar</div>
-          <div className={`${styles.statVal} ${styles.amber}`}>{loading ? '…' : fmtK(falta)}</div>
-          <div className={styles.statSub}>servicios pendientes</div>
-        </div>
-        <div className={styles.stat}>
+        <div className={styles.stat} style={{ gridColumn: '1 / -1' }}>
           <div className={styles.statLabel}>Disponible</div>
-          <div className={`${styles.statVal} ${dis >= 0 ? styles.green : styles.red}`}>{loading ? '…' : fmtK(dis)}</div>
-          <div className={styles.statSub}>estimado</div>
+          <div className={`${styles.statVal} ${dis >= 0 ? styles.green : styles.red}`} style={{ fontSize: 22 }}>
+            {loading ? '…' : fmtK(dis)}
+          </div>
+          <div className={styles.statSub}>ingreso − gastado</div>
         </div>
       </div>
+
+      {/* Falta pagar — solo informativo */}
+      {!loading && falta > 0 && (
+        <div className={styles.faltaBanner}>
+          <div>
+            <div className={styles.faltaLabel}>⚠️ Falta pagar (informativo)</div>
+            <div className={styles.faltaSub}>No resta del disponible hasta que pagues</div>
+          </div>
+          <div className={styles.faltaAmt}>{fmtK(falta)}</div>
+        </div>
+      )}
 
       {/* Metas */}
       <div className={styles.slab}>Metas de ahorro</div>
       <Card style={{ margin: '0 16px 12px', padding: '12px 16px' }}>
         {metas.length === 0 && <div className={styles.empty}>Sin metas. Creá una en Config.</div>}
         {metas.map(m => {
-          const p = parseFloat(m.monto_objetivo) ? Math.min(100, (parseFloat(m.monto_actual) / parseFloat(m.monto_objetivo)) * 100) : 0;
+          const p = parseFloat(m.monto_objetivo)
+            ? Math.min(100, (parseFloat(m.monto_actual) / parseFloat(m.monto_objetivo)) * 100)
+            : 0;
           return (
             <div key={m.id} className={styles.meta}>
               <div className={styles.metaTop}>

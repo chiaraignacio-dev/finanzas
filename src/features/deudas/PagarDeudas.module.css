@@ -1,0 +1,109 @@
+.totalBanner {
+  margin        : 0 16px 12px;
+  padding       : 16px;
+  background    : rgba(239, 68, 68, 0.08);
+  border        : 1px solid rgba(239, 68, 68, 0.25);
+  border-radius : var(--r);
+  display       : flex;
+  justify-content: space-between;
+  align-items   : center;
+}
+
+.totalLabel { font-size: 12px; color: var(--tx3); font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px; }
+.totalAmt   { font-size: 22px; font-weight: 700; font-family: var(--font-mono); color: var(--rd); }
+
+.slab {
+  font-size     : 10px;
+  font-weight   : 600;
+  color         : var(--tx3);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  padding       : 14px 20px 8px;
+}
+
+.deudaCard {
+  margin        : 0 16px 12px;
+  display       : flex;
+  flex-direction: column;
+  gap           : 12px;
+}
+
+.cardTop  { display: flex; justify-content: space-between; align-items: flex-start; }
+.cardTitle { font-size: 16px; font-weight: 600; }
+.cardMeta  { font-size: 11px; color: var(--tx3); margin-top: 3px; }
+
+.progressWrap   { display: flex; flex-direction: column; gap: 5px; }
+.progressBar    { height: 6px; background: var(--sf2); border-radius: 3px; overflow: hidden; }
+.progressFill   { height: 100%; background: var(--gn); border-radius: 3px; transition: width 0.5s ease; }
+.progressLabels { display: flex; justify-content: space-between; font-size: 11px; }
+
+.montoWrap  { display: flex; justify-content: space-between; align-items: center; }
+.montoLabel { font-size: 11px; color: var(--tx3); text-transform: uppercase; letter-spacing: 0.4px; }
+.montoVal   { font-size: 20px; font-weight: 700; font-family: var(--font-mono); color: var(--rd); }
+
+.pagoInline   { display: flex; flex-direction: column; gap: 8px; }
+.pagoActions  { display: flex; gap: 8px; }
+
+.totalBtn {
+  background  : none;
+  border      : none;
+  color       : var(--gn);
+  font-size   : 12px;
+  cursor      : pointer;
+  text-align  : center;
+  width       : 100%;
+  padding     : 4px;
+  text-decoration: underline;
+}
+
+/* Servicios */
+.servicioCard { margin: 0 16px 12px; }
+
+.servicioItem {
+  display      : flex;
+  align-items  : center;
+  gap          : 10px;
+  padding      : 10px 0;
+  border-bottom: 1px solid var(--bd);
+}
+.servicioItem:last-child { border-bottom: none; }
+
+.servicioIcon {
+  width          : 36px;
+  height         : 36px;
+  border-radius  : 9px;
+  background     : rgba(139, 92, 246, 0.12);
+  display        : flex;
+  align-items    : center;
+  justify-content: center;
+  font-size      : 17px;
+  flex-shrink    : 0;
+}
+
+.servicioInfo  { flex: 1; min-width: 0; }
+.servicioName  { font-size: 13px; font-weight: 500; }
+.servicioMeta  { font-size: 11px; color: var(--tx3); margin-top: 2px; }
+.servicioRight { text-align: right; flex-shrink: 0; }
+.servicioMonto { font-size: 14px; font-weight: 600; font-family: var(--font-mono); color: var(--am); }
+
+.empty {
+  display        : flex;
+  flex-direction : column;
+  align-items    : center;
+  justify-content: center;
+  padding        : 60px 24px;
+  color          : var(--tx3);
+  font-size      : 14px;
+  text-align     : center;
+}
+
+.loading { display: flex; justify-content: center; padding: 60px; }
+.spin {
+  width          : 28px;
+  height         : 28px;
+  border         : 3px solid var(--bd2);
+  border-top-color: var(--ac);
+  border-radius  : 50%;
+  animation      : spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }

@@ -130,3 +130,19 @@ export const CATEGORIAS = [
 ] as const;
 
 export type Categoria = typeof CATEGORIAS[number];
+
+// ── Resumenes de tarjeta ───────────────────────────────
+export type EstadoResumen = 'pendiente' | 'parcial' | 'pagado';
+
+export interface ResumenTarjeta {
+  id               : string;
+  created_at       : string;
+  user_id          : string;
+  tarjeta          : string;
+  periodo          : string;
+  fecha_vencimiento: string;
+  monto_total      : string;
+  monto_pagado     : string;
+  estado           : EstadoResumen;
+  notas            : string | null;
+}
