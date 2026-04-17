@@ -13,9 +13,9 @@ interface Props {
 }
 
 const TIPO_OPTIONS = [
-  { value: 'luz',       label: '⚡ Luz (EPRE)' },
-  { value: 'agua',      label: '💧 Agua (AYSAM)' },
-  { value: 'gas',       label: '🔥 Gas (Naturgy)' },
+  { value: 'luz',       label: '⚡ Luz' },
+  { value: 'agua',      label: '💧 Agua' },
+  { value: 'gas',       label: '🔥 Gas' },
   { value: 'internet',  label: '📡 Internet / Cable' },
   { value: 'expensas',  label: '🏢 Expensas' },
 ];

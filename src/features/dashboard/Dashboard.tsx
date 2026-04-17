@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Card } from '../../components/ui';
 import { PageHeader } from '../../components/ui/PageHeader';
+import { IngresosPendientes } from '../ingresos/IngresosPendientes';
 import { sbGet } from '../../lib/supabase';
 import { fmt, fmtK, FLAB, DESDE_MES } from '../../lib/utils';
-import type { Usuario, Movimiento, Servicio, Meta, ResumenTarjeta } from '../../lib/types';
+import type { Usuario, Movimiento, Servicio, Meta, ResumenTarjeta, Ingreso } from '../../lib/types';
 import styles from './Dashboard.module.css';
 
 interface Props {
@@ -12,94 +13,131 @@ interface Props {
 }
 
 export function Dashboard({ user, allUsers }: Props) {
-  const [mode,    setMode]    = useState<'yo' | 'hogar'>('yo');
-  const [ing,     setIng]     = useState(0);
-  const [gas,     setGas]     = useState(0);
-  const [falta,   setFalta]   = useState(0);
-  const [metas,   setMetas]   = useState<Meta[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [mode,      setMode]      = useState<'yo' | 'hogar'>('yo');
+  const [ing,       setIng]       = useState(0);
+  const [gas,       setGas]       = useState(0);
+  const [falta,     setFalta]     = useState(0);
+  const [metas,     setMetas]     = useState<Meta[]>([]);
+  const [loading,   setLoading]   = useState(true);
+  const [reloadKey, setReloadKey] = useState(0);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const uData = allUsers[user.username];
-      const abril = Object.values(allUsers).find(u => u.username !== user.username);
-      const myIng    = (uData?.ingreso_fijo || 0) || ((uData?.ingreso_q1 || 0) + (uData?.ingreso_q2 || 0));
-      const abrilIng = (abril?.ingreso_fijo || 0) || ((abril?.ingreso_q1 || 0) + (abril?.ingreso_q2 || 0));
-
-      let rows: Movimiento[], ingTotal: number;
+      let ingTotal = 0;
+      let rows: Movimiento[] = [];
 
       if (mode === 'yo') {
+        // Ingresos: solo los marcados como recibidos
+        const ingresosRecibidos = await sbGet<Ingreso>('ingresos', {
+          user_id : `eq.${user.id}`,
+          recibido: 'eq.true',
+          fecha_recibido: `gte.${DESDE_MES}`,
+        });
+        ingTotal = ingresosRecibidos.reduce((a, i) => a + parseFloat(i.monto), 0);
+
         const [mios, comp] = await Promise.all([
-          sbGet<Movimiento>('movimientos', { user_id: `eq.${user.id}`, estado: 'eq.confirmado', fecha: `gte.${DESDE_MES}` }),
-          sbGet<Movimiento>('movimientos', { es_compartido: 'eq.true', estado: 'eq.confirmado', user_id: `neq.${user.id}`, fecha: `gte.${DESDE_MES}` }),
+          sbGet<Movimiento>('movimientos', {
+            user_id: `eq.${user.id}`,
+            estado : 'eq.confirmado',
+            fecha  : `gte.${DESDE_MES}`,
+          }),
+          sbGet<Movimiento>('movimientos', {
+            es_compartido: 'eq.true',
+            estado       : 'eq.confirmado',
+            user_id      : `neq.${user.id}`,
+            fecha        : `gte.${DESDE_MES}`,
+          }),
         ]);
         rows = [...mios, ...comp];
-        ingTotal = myIng;
+
       } else {
-        const all = await sbGet<Movimiento>('movimientos', { estado: 'eq.confirmado', fecha: `gte.${DESDE_MES}` });
+        // Hogar: suma ingresos de todos los usuarios recibidos
+        const todosIngresos = await sbGet<Ingreso>('ingresos', {
+          recibido      : 'eq.true',
+          fecha_recibido: `gte.${DESDE_MES}`,
+        });
+        ingTotal = todosIngresos.reduce((a, i) => a + parseFloat(i.monto), 0);
+
+        // Todos los movimientos del hogar sin duplicar compartidos
+        const all = await sbGet<Movimiento>('movimientos', {
+          estado: 'eq.confirmado',
+          fecha : `gte.${DESDE_MES}`,
+        });
         const seen = new Set<string>();
-        rows = all.filter(r => { if (r.es_compartido) { if (seen.has(r.id)) return false; seen.add(r.id); } return true; });
-        ingTotal = myIng + abrilIng;
+        rows = all.filter(r => {
+          if (r.es_compartido) { if (seen.has(r.id)) return false; seen.add(r.id); }
+          return true;
+        });
       }
 
-      // Gastado = movimientos pagados/confirmados (NO incluye deudas pendientes)
+      // Gastado = gastos confirmados + pagos de deuda ya hechos
+      // Vista hogar: monto_total; vista yo: mi_parte
       const gasTotal = rows
         .filter(r => r.tipo === 'gasto' && !r.es_ahorro)
         .reduce((acc, r) => {
+          if (mode === 'hogar') return acc + parseFloat(r.monto_total);
           const esMio = String(r.user_id) === String(user.id);
-          const v = mode === 'yo' && r.es_compartido && !esMio
+          const v = r.es_compartido && !esMio
             ? parseFloat(r.parte_contraparte || r.mi_parte)
             : parseFloat(r.mi_parte);
           return acc + (v || 0);
         }, 0);
 
-      // Pagos de deuda ya realizados (también descuentan del disponible)
       const pagosDeuda = rows
-        .filter(r => r.tipo === 'deuda')
+        .filter(r => r.tipo === 'deuda' && r.estado === 'confirmado')
         .reduce((acc, r) => acc + parseFloat(r.mi_parte), 0);
 
-      // Falta pagar = servicios pendientes + saldo de resumenes tarjeta (informativo)
+      // Falta pagar: solo resumenes vigentes + servicios pendientes (informativo)
       const [srv, resumenes] = await Promise.all([
-        sbGet<Servicio>('servicios', { user_id: `eq.${user.id}`, estado: 'eq.pendiente' }),
-        sbGet<ResumenTarjeta>('resumenes_tarjeta', { user_id: `eq.${user.id}`, estado: 'neq.pagado' }),
+        sbGet<Servicio>('servicios', {
+          user_id: `eq.${user.id}`,
+          estado  : 'eq.pendiente',
+        }),
+        sbGet<ResumenTarjeta>('resumenes_tarjeta', {
+          user_id   : `eq.${user.id}`,
+          estado    : 'neq.pagado',
+          es_vigente: 'eq.true',
+        }),
       ]);
 
-      const hoy    = new Date().toISOString().split('T')[0];
-      const mesMes = DESDE_MES.substring(0, 7);
-      const srvPendiente = srv
+      const hoy     = new Date().toISOString().split('T')[0];
+      const mesMes  = DESDE_MES.substring(0, 7);
+      const srvPend = srv
         .filter(s => s.fecha_vencimiento.substring(0, 7) === mesMes || s.fecha_vencimiento <= hoy)
         .reduce((a, s) => a + parseFloat(s.mi_parte || '0'), 0);
+      const deudaTarjeta = resumenes
+        .reduce((a, r) => a + parseFloat(r.monto_total) - parseFloat(r.monto_pagado), 0);
 
-      const deudaTarjeta = resumenes.reduce((a, r) =>
-        a + parseFloat(r.monto_total) - parseFloat(r.monto_pagado), 0);
-
-      const faltaTotal = srvPendiente + deudaTarjeta;
-
-      // Disponible = Ingreso - Gastado - Pagos de deuda ya realizados
-      // Falta pagar es informativo, NO resta del disponible hasta que se pague
       const m = await sbGet<Meta>('metas', { user_id: `eq.${user.id}`, activa: 'eq.true' });
 
       setIng(ingTotal);
       setGas(gasTotal + pagosDeuda);
-      setFalta(faltaTotal);
+      setFalta(srvPend + deudaTarjeta);
       setMetas(m);
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   }, [mode, user, allUsers]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(); }, [load, reloadKey]);
 
   const dis = ing - gas;
   const pct = ing ? gas / ing : 0;
-  const sem = pct < 0.65 ? { icon: '🟢', title: 'Finanzas saludables',  sub: `Gastás el ${(pct*100).toFixed(0)}% del ingreso.` }
-            : pct < 0.85 ? { icon: '🟡', title: 'Atención',             sub: `Gastás el ${(pct*100).toFixed(0)}%. Reducí gastos variables.` }
-            :               { icon: '🔴', title: 'Situación crítica',    sub: `Gastás el ${(pct*100).toFixed(0)}%. Hay que ajustar urgente.` };
+  const sem = pct < 0.65
+    ? { icon: '🟢', title: 'Finanzas saludables',  sub: `Gastás el ${(pct*100).toFixed(0)}% del ingreso.` }
+    : pct < 0.85
+    ? { icon: '🟡', title: 'Atención',             sub: `Gastás el ${(pct*100).toFixed(0)}%. Reducí gastos variables.` }
+    : { icon: '🔴', title: 'Situación crítica',    sub: `Gastás el ${(pct*100).toFixed(0)}%. Hay que ajustar urgente.` };
 
   return (
     <div>
       <PageHeader title="Dashboard" subtitle={FLAB} />
+
+      {/* Ingresos pendientes de confirmar */}
+      <IngresosPendientes
+        user   ={user}
+        onToast={(_msg) => {}}
+        onPaid ={() => setReloadKey(k => k + 1)}
+      />
 
       <div className={styles.toggle}>
         <button className={`${styles.tb} ${mode === 'yo'    ? styles.active : ''}`} onClick={() => setMode('yo')}>👤 Yo</button>
@@ -108,9 +146,9 @@ export function Dashboard({ user, allUsers }: Props) {
 
       <div className={styles.grid}>
         <div className={styles.stat}>
-          <div className={styles.statLabel}>Ingreso</div>
+          <div className={styles.statLabel}>Ingreso confirmado</div>
           <div className={`${styles.statVal} ${styles.blue}`}>{loading ? '…' : fmtK(ing)}</div>
-          <div className={styles.statSub}>{mode === 'yo' ? 'mi ingreso mensual' : 'ingreso hogar total'}</div>
+          <div className={styles.statSub}>{mode === 'yo' ? 'cobrado este mes' : 'hogar este mes'}</div>
         </div>
         <div className={styles.stat}>
           <div className={styles.statLabel}>Gastado</div>
@@ -122,7 +160,7 @@ export function Dashboard({ user, allUsers }: Props) {
           <div className={`${styles.statVal} ${dis >= 0 ? styles.green : styles.red}`} style={{ fontSize: 22 }}>
             {loading ? '…' : fmtK(dis)}
           </div>
-          <div className={styles.statSub}>ingreso − gastado</div>
+          <div className={styles.statSub}>ingreso cobrado − gastado</div>
         </div>
       </div>
 
@@ -130,7 +168,7 @@ export function Dashboard({ user, allUsers }: Props) {
       {!loading && falta > 0 && (
         <div className={styles.faltaBanner}>
           <div>
-            <div className={styles.faltaLabel}>⚠️ Falta pagar (informativo)</div>
+            <div className={styles.faltaLabel}>⚠️ Falta pagar</div>
             <div className={styles.faltaSub}>No resta del disponible hasta que pagues</div>
           </div>
           <div className={styles.faltaAmt}>{fmtK(falta)}</div>

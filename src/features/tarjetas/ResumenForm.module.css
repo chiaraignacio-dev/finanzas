@@ -121,3 +121,95 @@
   border-radius: var(--rs);
   padding      : 8px 12px;
 }
+
+/* Consumo compartido */
+.itemComp { background: rgba(59, 130, 246, 0.04); border-left: 2px solid var(--ac); }
+
+.consumoMain {
+  display        : flex;
+  justify-content: space-between;
+  align-items    : flex-start;
+  gap            : 8px;
+}
+
+.compTag { color: var(--ac2); font-size: 10px; }
+
+.consumoActions {
+  display    : flex;
+  align-items: center;
+  gap        : 4px;
+  margin-top : 4px;
+}
+
+.compToggle {
+  background   : var(--sf3);
+  border       : 1px solid var(--bd2);
+  border-radius: 4px;
+  padding      : 2px 6px;
+  font-size    : 12px;
+  cursor       : pointer;
+  opacity      : 0.5;
+}
+.compToggleOn { opacity: 1; border-color: var(--ac); background: rgba(59,130,246,0.15); }
+
+.divSelect {
+  background   : var(--sf2);
+  border       : 1px solid var(--bd2);
+  border-radius: 4px;
+  color        : var(--tx);
+  font-size    : 11px;
+  padding      : 2px 4px;
+  cursor       : pointer;
+}
+
+.sharedToggle {
+  display      : flex;
+  align-items  : center;
+  justify-content: center;
+  padding      : 8px;
+  border       : 1.5px solid var(--bd2);
+  border-radius: var(--rs);
+  cursor       : pointer;
+  font-size    : 13px;
+  color        : var(--tx3);
+  transition   : all 0.15s;
+}
+.sharedActive { border-color: var(--ac); color: var(--ac2); background: rgba(59,130,246,0.08); }
+
+.divRow { display: flex; gap: 6px; }
+
+.divBtn {
+  flex         : 1;
+  padding      : 6px;
+  background   : var(--sf2);
+  border       : 1.5px solid var(--bd2);
+  border-radius: var(--rs);
+  color        : var(--tx3);
+  font-size    : 12px;
+  cursor       : pointer;
+  transition   : all 0.15s;
+}
+.divActive { border-color: var(--ac); color: var(--ac2); background: rgba(59,130,246,0.1); }
+
+.resumenRowTotal {
+  display        : flex;
+  justify-content: space-between;
+  font-size      : 14px;
+  font-weight    : 700;
+  color          : var(--tx);
+  border-top     : 1px solid var(--bd);
+  padding-top    : 8px;
+  margin-top     : 4px;
+}
+
+.resumenRowDeuda {
+  display        : flex;
+  justify-content: space-between;
+  font-size      : 13px;
+  color          : var(--tx2);
+  background     : rgba(16, 185, 129, 0.08);
+  border         : 1px solid rgba(16, 185, 129, 0.2);
+  border-radius  : var(--rs);
+  padding        : 8px 10px;
+  margin-top     : 4px;
+}

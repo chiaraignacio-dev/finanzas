@@ -1,0 +1,26 @@
+.slab {
+  font-size     : 10px;
+  font-weight   : 600;
+  color         : var(--gn);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  padding       : 14px 20px 8px;
+}
+
+.card { margin: 0 16px 12px; }
+
+.item {
+  display      : flex;
+  align-items  : center;
+  gap          : 10px;
+  padding      : 10px 0;
+  border-bottom: 1px solid var(--bd);
+}
+.item:last-child { border-bottom: none; }
+
+.info  { flex: 1; min-width: 0; }
+.desc  { font-size: 13px; font-weight: 500; }
+.meta  { font-size: 11px; color: var(--tx3); margin-top: 2px; }
+
+.right  { text-align: right; flex-shrink: 0; }
+.monto  { font-size: 14px; font-weight: 600; font-family: var(--font-mono); color: var(--gn); }

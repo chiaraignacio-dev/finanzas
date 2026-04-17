@@ -2,22 +2,24 @@ import { useState } from 'react';
 import { Input, Select, Button, Card } from '../../../components/ui';
 import { RadioGroup } from '../../../components/ui/RadioGroup';
 import { sbPost } from '../../../lib/supabase';
+import { crearDeudaInterpersonal } from '../../../lib/deudas.service';
 import { CATEGORIAS, type MedioPago, type Usuario } from '../../../lib/types';
 import { fmt, FISO, partePorDiv } from '../../../lib/utils';
 import styles from './forms.module.css';
 
 interface Props {
-  user    : Usuario;
-  medios  : MedioPago[];
-  prop    : number;
+  user     : Usuario;
+  medios   : MedioPago[];
+  prop     : number;
+  allUsers : Record<string, Usuario>;
   onSuccess: (msg: string) => void;
 }
 
 const DIVISION_OPTIONS = [
   { value: 'personal', label: 'Solo mío' },
-  { value: 'prop',     label: 'Compartido proporcional', sublabel: 'Según ingresos del hogar' },
-  { value: 'mitad',    label: 'Compartido 50/50' },
-  { value: 'novia',    label: 'Lo pagué yo / es de mi pareja' },
+  { value: 'prop',     label: 'Proporcional', sublabel: 'Según ingresos del hogar' },
+  { value: 'mitad',    label: '50/50' },
+  { value: 'novia',    label: 'Lo pagué yo — es de mi pareja' },
 ];
 
 const CUOTAS_OPTIONS = [
@@ -25,37 +27,40 @@ const CUOTAS_OPTIONS = [
   { value: 'si', label: 'Sí, en cuotas' },
 ];
 
-export function GastoForm({ user, medios, prop, onSuccess }: Props) {
-  const [fecha,   setFecha]   = useState(FISO);
-  const [desc,    setDesc]    = useState('');
-  const [cat,     setCat]     = useState('');
-  const [medioId, setMedioId] = useState('');
-  const [monto,   setMonto]   = useState('');
-  const [div,     setDiv]     = useState('personal');
-  const [enCuotas,setEnCuotas]= useState('no');
-  const [cantCuotas,setCantCuotas] = useState('');
-  const [notas,   setNotas]   = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error,   setError]   = useState('');
+export function GastoForm({ user, medios, prop, allUsers, onSuccess }: Props) {
+  const [fecha,     setFecha]     = useState(FISO);
+  const [desc,      setDesc]      = useState('');
+  const [cat,       setCat]       = useState('');
+  const [medioId,   setMedioId]   = useState('');
+  const [monto,     setMonto]     = useState('');
+  const [div,       setDiv]       = useState('personal');
+  const [enCuotas,  setEnCuotas]  = useState('no');
+  const [cantCuotas,setCantCuotas]= useState('');
+  const [notas,     setNotas]     = useState('');
+  const [loading,   setLoading]   = useState(false);
+  const [error,     setError]     = useState('');
 
-  const medio    = medios.find(m => m.id === medioId);
-  const esCred   = medio?.tipo === 'credito';
-  const esComp   = ['prop', 'mitad'].includes(div);
-  const montoNum = parseFloat(monto) || 0;
-  const miParte  = partePorDiv(montoNum, div, prop);
+  const medio      = medios.find(m => m.id === medioId);
+  const esCred     = medio?.tipo === 'credito';
+  const esComp     = ['prop', 'mitad', 'novia'].includes(div);
+  const montoNum   = parseFloat(monto) || 0;
+  const miParte    = Math.round(partePorDiv(montoNum, div, prop));
+  const parteOtro  = Math.round(montoNum - miParte);
+
+  // Encontrar a la otra persona del hogar
+  const pareja = Object.values(allUsers).find(u => u.id !== user.id);
 
   const catOptions = CATEGORIAS.map(c => ({ value: c, label: c }));
   const medOptions = medios.map(m => ({ value: m.id, label: m.nombre }));
 
   async function handleSubmit() {
     if (!desc || !cat || !medioId || !montoNum || !div) {
-      setError('Completá todos los campos obligatorios');
-      return;
+      setError('Completá todos los campos obligatorios'); return;
     }
-    setError('');
-    setLoading(true);
+    setError(''); setLoading(true);
     try {
-      await sbPost('movimientos', {
+      // 1. Registrar el movimiento (siempre confirmado — el gasto ya ocurrió)
+      const mov = await sbPost<{ id: string }>('movimientos', {
         fecha,
         tipo             : 'gasto',
         descripcion      : desc,
@@ -64,9 +69,10 @@ export function GastoForm({ user, medios, prop, onSuccess }: Props) {
         division         : div,
         tipo_division    : div,
         monto_total      : montoNum,
-        mi_parte         : Math.round(miParte),
-        parte_usuario    : Math.round(miParte),
-        parte_contraparte: Math.round(montoNum - miParte),
+        mi_parte         : miParte,
+        monto_pagado     : montoNum, // yo lo pagué todo
+        parte_usuario    : miParte,
+        parte_contraparte: parteOtro,
         es_deuda         : false,
         es_ahorro        : false,
         en_cuotas        : enCuotas === 'si',
@@ -74,14 +80,29 @@ export function GastoForm({ user, medios, prop, onSuccess }: Props) {
         notas            : notas || null,
         user_id          : user.id,
         es_compartido    : esComp,
-        estado           : esComp ? 'pendiente' : 'confirmado',
+        estado           : 'confirmado', // el gasto YA fue pagado por mí
       });
-      onSuccess(esComp ? '⚡ Enviado a tu pareja' : 'Gasto guardado ✓');
+
+      // 2. Si hay parte de la otra persona → crear deuda interpersonal
+      if (esComp && parteOtro > 0 && pareja && div !== 'novia') {
+        await crearDeudaInterpersonal({
+          acreedorId  : user.id,
+          deudorId    : pareja.id,
+          descripcion : `${desc} — ${div === 'mitad' ? '50/50' : 'proporcional'}`,
+          montoTotal  : parteOtro,
+          origen      : 'gasto',
+          movimientoId: mov.id,
+          notas       : `Gasto del ${fecha}`,
+        });
+      }
+
+      const msg = esComp && parteOtro > 0 && div !== 'novia'
+        ? `Gasto guardado ✓ — ${pareja?.nombre || 'tu pareja'} te debe ${fmt(parteOtro)}`
+        : 'Gasto guardado ✓';
+      onSuccess(msg);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Error al guardar');
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   }
 
   return (
@@ -96,9 +117,9 @@ export function GastoForm({ user, medios, prop, onSuccess }: Props) {
       )}
       {esCred && enCuotas === 'si' && (
         <Select
-          label="Cantidad de cuotas"
+          label  ="Cantidad de cuotas"
           options={['2','3','6','9','12','18','24'].map(v => ({ value: v, label: `${v} cuotas` }))}
-          value={cantCuotas}
+          value  ={cantCuotas}
           onChange={e => setCantCuotas(e.target.value)}
           placeholder="—"
           fullWidth
@@ -109,20 +130,22 @@ export function GastoForm({ user, medios, prop, onSuccess }: Props) {
 
       <RadioGroup name="division" label="División *" options={DIVISION_OPTIONS} value={div} onChange={setDiv} />
 
-      {esComp && (
-        <div className={styles.alert}>⚡ Gasto compartido — tu pareja deberá confirmarlo.</div>
-      )}
       {montoNum > 0 && (
         <div className={styles.pill}>
-          <span>Tu parte</span>
+          <span>Mi parte</span>
           <strong>{fmt(miParte)}</strong>
+        </div>
+      )}
+
+      {esComp && parteOtro > 0 && div !== 'novia' && pareja && (
+        <div className={styles.alert}>
+          ⚡ Se generará una deuda de <strong>{fmt(parteOtro)}</strong> de {pareja.nombre} hacia vos.
         </div>
       )}
 
       <Input label="Notas" placeholder="Opcional…" value={notas} onChange={e => setNotas(e.target.value)} fullWidth />
 
       {error && <div className={styles.error}>{error}</div>}
-
       <Button variant="primary" fullWidth loading={loading} onClick={handleSubmit} style={{ marginTop: 8 }}>
         Guardar gasto
       </Button>

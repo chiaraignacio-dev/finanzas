@@ -67,10 +67,10 @@ export function AppShell({ user, onLogout }: AppShellProps) {
   useEffect(() => { loadSharedData(); }, [loadSharedData]);
 
   const screens: Record<TabId, ReactElement> = {
-    registrar: <Registrar user={user} medios={medios} metas={metas} prop={prop} onToast={toast} />,
+    registrar: <Registrar user={user} medios={medios} metas={metas} prop={prop} allUsers={allUsers} onToast={toast} />,
     historial : <Historial user={user} allUsers={allUsers} onToast={toast} onBadge={() => {}} />,
     dashboard : <Dashboard user={user} allUsers={allUsers} />,
-    deudas    : <PagarDeudas user={user} onToast={toast} onBadge={setBadge} />,
+    deudas    : <PagarDeudas user={user} allUsers={allUsers} onToast={toast} onBadge={setBadge} />,
     config    : <Config user={user} onToast={toast} onLogout={onLogout} onReload={loadSharedData} />,
   };
 
