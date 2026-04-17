@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { ReactElement } from 'react';
-import { BottomNav } from '../BottomNav';
-import { Toast }     from '../Toast';
-import type { TabId }     from '../BottomNav';
-import type { ToastType } from '../Toast';
+import { BottomNav }       from '../BottomNav';
+import { DesktopSidebar }  from '../DesktopSidebar';
+import { Toast }           from '../Toast';
+import type { TabId }      from '../BottomNav';
+import type { ToastType }  from '../Toast';
 import { Registrar }   from '../../../features/gastos/registrar/Registrar';
 import { Historial }   from '../../../features/gastos/historial/Historial';
 import { Dashboard }   from '../../../features/dashboard/Dashboard';
@@ -19,6 +20,17 @@ interface AppShellProps {
   onLogout: () => void;
 }
 
+function useIsDesktop() {
+  const [isDesktop, setIsDesktop] = useState(() => window.innerWidth >= 768);
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 768px)');
+    const handler = (e: MediaQueryListEvent) => setIsDesktop(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+  return isDesktop;
+}
+
 export function AppShell({ user, onLogout }: AppShellProps) {
   const [activeTab,    setActiveTab]    = useState<TabId>('registrar');
   const [badge,        setBadge]        = useState(0);
@@ -29,6 +41,7 @@ export function AppShell({ user, onLogout }: AppShellProps) {
   const [medios,       setMedios]       = useState<MedioPago[]>([]);
   const [metas,        setMetas]        = useState<Meta[]>([]);
   const [prop,         setProp]         = useState(0.5435);
+  const isDesktop = useIsDesktop();
   let toastTimer: ReturnType<typeof setTimeout>;
 
   function toast(msg: string, type: ToastType = 'ok') {
@@ -36,7 +49,7 @@ export function AppShell({ user, onLogout }: AppShellProps) {
     setToastType(type);
     setToastVisible(true);
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => setToastVisible(false), 3000);
+    toastTimer = setTimeout(() => setToastVisible(false), 3500);
   }
 
   const loadSharedData = useCallback(async () => {
@@ -46,7 +59,6 @@ export function AppShell({ user, onLogout }: AppShellProps) {
         sbGet<MedioPago>('medios_pago', { user_id: `eq.${user.id}`, activo: 'eq.true' }),
         sbGet<Meta>('metas', { user_id: `eq.${user.id}`, activa: 'eq.true' }),
       ]);
-
       const byUsername: Record<string, Usuario> = {};
       users.forEach(u => (byUsername[u.username] = u));
       setAllUsers(byUsername);
@@ -75,12 +87,32 @@ export function AppShell({ user, onLogout }: AppShellProps) {
   };
 
   return (
-    <div className={styles.shell}>
+    <div className={isDesktop ? styles.rootDesktop : styles.rootMobile}>
       <Toast message={toastMsg} type={toastType} visible={toastVisible} />
-      <main className={styles.screen}>
-        {screens[activeTab]}
-      </main>
-      <BottomNav active={activeTab} onChange={setActiveTab} badge={badge} />
+
+      {/* Sidebar — solo se monta en desktop */}
+      {isDesktop && (
+        <DesktopSidebar
+          active      ={activeTab}
+          onChange    ={setActiveTab}
+          badge       ={badge}
+          userName    ={user.nombre}
+          userInitial ={user.nombre[0].toUpperCase()}
+          onLogout    ={onLogout}
+        />
+      )}
+
+      {/* Área de contenido */}
+      <div className={styles.content}>
+        <main className={styles.screen}>
+          {screens[activeTab]}
+        </main>
+
+        {/* BottomNav — solo se monta en mobile */}
+        {!isDesktop && (
+          <BottomNav active={activeTab} onChange={setActiveTab} badge={badge} />
+        )}
+      </div>
     </div>
   );
 }

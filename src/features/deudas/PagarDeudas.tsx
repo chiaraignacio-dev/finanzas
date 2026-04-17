@@ -148,26 +148,29 @@ export function PagarDeudas({ user, allUsers, onToast, onBadge }: Props) {
   }
 
   // ── Confirmar cobro (soy acreedor) ────────────────
-  async function confirmarCobro(deuda: DeudaInterpersonal) {
+  async function confirmarCobro(deuda: DeudaInterpersonal, montoCobrado: number) {
+    const saldo         = parseFloat(deuda.monto_total) - parseFloat(deuda.monto_pagado);
+    const efectivo      = Math.min(montoCobrado, saldo);
+    const nuevoMontoPag = parseFloat(deuda.monto_pagado) + efectivo;
+    const nuevoSaldo    = parseFloat(deuda.monto_total) - nuevoMontoPag;
+    const nuevoEstado   = nuevoSaldo <= 0 ? 'pagado' : 'parcial';
     try {
-      // Registrar ingreso en mi cuenta (impacta en disponible)
-      const saldoCobrado = parseFloat(deuda.monto_total) - parseFloat(deuda.monto_pagado);
       await sbPost('ingresos', {
         user_id       : user.id,
         descripcion   : `Cobro: ${deuda.descripcion}`,
-        monto         : saldoCobrado,
+        monto         : efectivo,
         tipo          : 'extra',
         fecha_esperada: FISO,
         fecha_recibido: FISO,
         recibido      : true,
         recurrente    : false,
       });
-      // Marcar la deuda como pagada
       await sbPatch('deudas_interpersonales', deuda.id, {
-        monto_pagado: parseFloat(deuda.monto_total),
-        estado      : 'pagado',
+        monto_pagado: nuevoMontoPag,
+        estado      : nuevoEstado,
       });
-      onToast('Cobro confirmado ✓ — impacta en tu disponible');
+      onToast(nuevoEstado === 'pagado' ? 'Cobro total confirmado ✓' : `Cobro parcial de ${fmt(efectivo)} confirmado ✓`);
+      setPagando(null); setMontoPago('');
       load();
     } catch { onToast('Error', 'err'); }
   }
@@ -237,9 +240,10 @@ export function PagarDeudas({ user, allUsers, onToast, onBadge }: Props) {
                   <div className={styles.montoLabel}>A cobrar</div>
                   <div className={styles.montoVal} style={{ color: 'var(--gn)' }}>{fmt(saldo)}</div>
                 </div>
-                <Button variant="success" fullWidth onClick={() => confirmarCobro(d)}>
-                  Confirmar cobro ✓
-                </Button>
+                {pagando === d.id
+                  ? <PagoInline id={d.id} saldo={saldo} onConfirm={m => confirmarCobro(d, m)} />
+                  : <Button variant="success" fullWidth onClick={() => setPagando(d.id)}>Registrar cobro</Button>
+                }
               </Card>
             );
           })}

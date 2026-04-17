@@ -1,0 +1,133 @@
+.sidebar {
+  width         : 220px;
+  flex-shrink   : 0;
+  background    : var(--sf);
+  border-right  : 1px solid var(--bd2);
+  display       : flex;
+  flex-direction: column;
+  padding       : 24px 12px;
+  gap           : 4px;
+}
+
+/* Logo */
+.logo {
+  display    : flex;
+  align-items: center;
+  gap        : 10px;
+  padding    : 0 8px 24px;
+}
+
+.logoIcon { font-size: 22px; }
+.logoText {
+  font-size  : 18px;
+  font-weight: 700;
+  color      : var(--ac);
+  letter-spacing: -0.5px;
+}
+
+/* Nav */
+.nav {
+  flex          : 1;
+  display       : flex;
+  flex-direction: column;
+  gap           : 2px;
+}
+
+.item {
+  display      : flex;
+  align-items  : center;
+  gap          : 10px;
+  padding      : 10px 12px;
+  border       : none;
+  background   : transparent;
+  color        : var(--tx3);
+  font-family  : var(--font-sans);
+  font-size    : 13px;
+  font-weight  : 500;
+  border-radius: 10px;
+  cursor       : pointer;
+  transition   : all 0.15s;
+  text-align   : left;
+  position     : relative;
+}
+
+.item:hover { background: var(--sf2); color: var(--tx2); }
+
+.item.active {
+  background: rgba(32, 219, 144, 0.12);
+  color     : var(--ac);
+  font-weight: 600;
+}
+
+.itemIcon {
+  font-size  : 16px;
+  width      : 20px;
+  text-align : center;
+  flex-shrink: 0;
+}
+
+.itemLabel { flex: 1; }
+
+.badge {
+  background   : var(--rd);
+  color        : #fff;
+  font-size    : 10px;
+  font-weight  : 700;
+  border-radius: 10px;
+  padding      : 1px 6px;
+  min-width    : 18px;
+  text-align   : center;
+}
+
+/* Footer */
+.footer {
+  border-top    : 1px solid var(--bd);
+  padding-top   : 16px;
+  display       : flex;
+  flex-direction: column;
+  gap           : 8px;
+}
+
+.userPill {
+  display    : flex;
+  align-items: center;
+  gap        : 8px;
+  padding    : 8px 10px;
+  background : var(--sf2);
+  border-radius: 10px;
+}
+
+.avatar {
+  width          : 28px;
+  height         : 28px;
+  border-radius  : 50%;
+  background     : rgba(32, 219, 144, 0.2);
+  color          : var(--ac);
+  display        : flex;
+  align-items    : center;
+  justify-content: center;
+  font-size      : 12px;
+  font-weight    : 700;
+  flex-shrink    : 0;
+}
+
+.userName {
+  font-size  : 13px;
+  font-weight: 500;
+  color      : var(--tx2);
+}
+
+.logout {
+  background   : transparent;
+  border       : 1px solid rgba(224, 90, 90, 0.3);
+  color        : var(--rd);
+  border-radius: 8px;
+  padding      : 6px 12px;
+  font-size    : 12px;
+  font-family  : var(--font-sans);
+  cursor       : pointer;
+  transition   : all 0.15s;
+  text-align   : center;
+}
+
+.logout:hover { background: rgba(224, 90, 90, 0.1); }

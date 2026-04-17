@@ -1,38 +1,66 @@
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
 
+/* ── Design tokens ──────────────────────────────────── */
 :root {
-  --bg : #080C14;
-  --sf : #0F1623;
-  --sf2: #16202E;
-  --sf3: #1C2A3E;
-  --bd : rgba(255, 255, 255, 0.07);
-  --bd2: rgba(255, 255, 255, 0.13);
-  --ac : #3B82F6;
-  --ac2: #60A5FA;
-  --gn : #10B981;
-  --rd : #EF4444;
-  --am : #F59E0B;
-  --pu : #8B5CF6;
-  --tx : #F1F5F9;
-  --tx2: #94A3B8;
-  --tx3: #475569;
+  /* Nueva paleta */
+  --bg : #121709;          /* color3 — fondo principal */
+  --sf : #1a2010;          /* derivado oscuro de color3 */
+  --sf2: #1f2a14;          /* superficie secundaria */
+  --sf3: #263318;          /* superficie terciaria */
+  --bd : rgba(210,230,97,0.08);   /* color2 muy tenue */
+  --bd2: rgba(210,230,97,0.18);
+
+  --ac : #20db90;          /* color1 — acción principal */
+  --ac2: #2ef5a2;          /* color1 más brillante */
+  --gn : #20db90;          /* color1 — éxito/positivo */
+  --rd : #e05a5a;          /* rojo suave sobre fondo oscuro */
+  --am : #d2e661;          /* color2 — advertencia/amarillo */
+  --pu : #8fa854;          /* derivado de color2 */
+
+  --tx : #f3eae8;          /* color5 — texto principal */
+  --tx2: #c4b8b5;          /* color5 atenuado */
+  --tx3: #7c7974;          /* color4 — texto terciario */
+
   --r  : 14px;
   --rs : 8px;
   --font-sans: 'DM Sans', sans-serif;
   --font-mono: 'DM Mono', monospace;
 }
 
+/* ── Reset ──────────────────────────────────────────── */
 *, *::before, *::after {
   box-sizing: border-box;
-  margin: 0;
-  padding: 0;
+  margin    : 0;
+  padding   : 0;
   -webkit-tap-highlight-color: transparent;
 }
 
 html, body, #root {
-  height: 100%;
+  height    : 100%;
   background: var(--bg);
-  color: var(--tx);
+  color     : var(--tx);
   font-family: var(--font-sans);
-  overflow: hidden;
+}
+
+/* ── Layout raíz ────────────────────────────────────── */
+.app-root {
+  display  : flex;
+  height   : 100vh;
+  height   : 100dvh;
+  overflow : hidden;
+}
+
+/* ── Mobile (< 768px): columna única, nav abajo ─────── */
+@media (max-width: 767px) {
+  .app-root {
+    flex-direction: column;
+  }
+  .desktop-sidebar { display: none !important; }
+  .mobile-shell    { display: flex !important; flex-direction: column; flex: 1; overflow: hidden; }
+}
+
+/* ── Desktop (≥ 768px): sidebar izquierdo ───────────── */
+@media (min-width: 768px) {
+  .mobile-nav   { display: none !important; }
+  .mobile-shell { display: flex !important; flex: 1; overflow: hidden; }
 }
