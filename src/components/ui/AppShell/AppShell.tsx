@@ -1,118 +1,93 @@
-import { useState, useEffect, useCallback } from 'react';
-import type { ReactElement } from 'react';
-import { BottomNav }       from '../BottomNav';
-import { DesktopSidebar }  from '../DesktopSidebar';
-import { Toast }           from '../Toast';
-import type { TabId }      from '../BottomNav';
-import type { ToastType }  from '../Toast';
-import { Registrar }   from '../../../features/gastos/registrar/Registrar';
-import { Historial }   from '../../../features/gastos/historial/Historial';
-import { Dashboard }   from '../../../features/dashboard/Dashboard';
-import { PagarDeudas } from '../../../features/deudas/PagarDeudas';
-import { Config }      from '../../../features/config/Config';
-import { sbGet }       from '../../../lib/supabase';
-import { getProp }     from '../../../lib/utils';
-import type { Usuario, MedioPago, Meta } from '../../../lib/types';
-import styles from './AppShell.module.css';
+import type { ReactElement }    from 'react';
+import { useState, useEffect }  from 'react';
+import { BottomNav }            from '../BottomNav';
+import { DesktopSidebar }       from '../DesktopSidebar';
+import { Toast }                from '../Toast';
+import { SesionProvider, usarSesion, usarToast } from '../../../context/SesionContext';
+import { usarEscritorioOMobile } from '../../../hooks/usarEscritorioOMobile';
+import { Registrar }             from '../../../features/gastos/registrar/Registrar';
+import { Historial }             from '../../../features/gastos/historial/Historial';
+import { Dashboard }             from '../../../features/dashboard/Dashboard';
+import { PagarDeudas }           from '../../../features/deudas/PagarDeudas';
+import { Balance }               from '../../../features/balance/Balance';
+import { Presupuestos }          from '../../../features/presupuestos/Presupuestos';
+import { Config }                from '../../../features/config/Config';
+import {
+  programarRecordatoriosServicios,
+  registrarServiceWorker,
+} from '../../../lib/notificaciones';
+import type { TabId }   from '../BottomNav';
+import type { Usuario } from '../../../lib/types';
+import styles           from './AppShell.module.css';
 
-interface AppShellProps {
-  user    : Usuario;
-  onLogout: () => void;
-}
+function ShellInterno({ onLogout }: { onLogout: () => void }) {
+  const { usuario, cargando }      = usarSesion();
+  const { mensaje, tipo, visible } = usarToast();
+  const [pestañaActiva, setPestañaActiva] = useState<TabId>('registrar');
+  const [badge,         setBadge]         = useState(0);
+  const esEscritorio = usarEscritorioOMobile();
 
-function useIsDesktop() {
-  const [isDesktop, setIsDesktop] = useState(() => window.innerWidth >= 768);
+  // Registrar SW y programar recordatorios al iniciar
   useEffect(() => {
-    const mq = window.matchMedia('(min-width: 768px)');
-    const handler = (e: MediaQueryListEvent) => setIsDesktop(e.matches);
-    mq.addEventListener('change', handler);
-    return () => mq.removeEventListener('change', handler);
-  }, []);
-  return isDesktop;
-}
+    if (!cargando) {
+      registrarServiceWorker();
+      programarRecordatoriosServicios(usuario.id);
+    }
+  }, [cargando, usuario.id]);
 
-export function AppShell({ user, onLogout }: AppShellProps) {
-  const [activeTab,    setActiveTab]    = useState<TabId>('registrar');
-  const [badge,        setBadge]        = useState(0);
-  const [toastMsg,     setToastMsg]     = useState('');
-  const [toastType,    setToastType]    = useState<ToastType>('ok');
-  const [toastVisible, setToastVisible] = useState(false);
-  const [allUsers,     setAllUsers]     = useState<Record<string, Usuario>>({});
-  const [medios,       setMedios]       = useState<MedioPago[]>([]);
-  const [metas,        setMetas]        = useState<Meta[]>([]);
-  const [prop,         setProp]         = useState(0.5435);
-  const isDesktop = useIsDesktop();
-  let toastTimer: ReturnType<typeof setTimeout>;
-
-  function toast(msg: string, type: ToastType = 'ok') {
-    setToastMsg(msg);
-    setToastType(type);
-    setToastVisible(true);
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => setToastVisible(false), 3500);
-  }
-
-  const loadSharedData = useCallback(async () => {
-    try {
-      const [users, ms, mts] = await Promise.all([
-        sbGet<Usuario>('usuarios', {}),
-        sbGet<MedioPago>('medios_pago', { user_id: `eq.${user.id}`, activo: 'eq.true' }),
-        sbGet<Meta>('metas', { user_id: `eq.${user.id}`, activa: 'eq.true' }),
-      ]);
-      const byUsername: Record<string, Usuario> = {};
-      users.forEach(u => (byUsername[u.username] = u));
-      setAllUsers(byUsername);
-      setMedios(ms);
-      setMetas(mts);
-
-      const ignacio = byUsername['ignacio'];
-      const abril   = byUsername['abril'];
-      if (ignacio && abril) {
-        setProp(getProp(
-          ignacio.ingreso_fijo || 0, ignacio.ingreso_q1 || 0, ignacio.ingreso_q2 || 0,
-          abril.ingreso_fijo   || 0, abril.ingreso_q1   || 0, abril.ingreso_q2   || 0,
-        ));
-      }
-    } catch (e) { console.error(e); }
-  }, [user]);
-
-  useEffect(() => { loadSharedData(); }, [loadSharedData]);
-
-  const screens: Record<TabId, ReactElement> = {
-    registrar: <Registrar user={user} medios={medios} metas={metas} prop={prop} allUsers={allUsers} onToast={toast} />,
-    historial : <Historial user={user} allUsers={allUsers} onToast={toast} onBadge={() => {}} />,
-    dashboard : <Dashboard user={user} allUsers={allUsers} />,
-    deudas    : <PagarDeudas user={user} allUsers={allUsers} onToast={toast} onBadge={setBadge} />,
-    config    : <Config user={user} onToast={toast} onLogout={onLogout} onReload={loadSharedData} />,
+  const pantallas: Record<TabId, ReactElement> = {
+    registrar   : <Registrar />,
+    historial   : <Historial onBadge={() => {}} />,
+    dashboard   : <Dashboard />,
+    deudas      : <PagarDeudas onBadge={setBadge} />,
+    balance     : <Balance />,
+    presupuestos: <Presupuestos />,
+    config      : <Config onLogout={onLogout} />,
   };
 
   return (
-    <div className={isDesktop ? styles.rootDesktop : styles.rootMobile}>
-      <Toast message={toastMsg} type={toastType} visible={toastVisible} />
+    <div className={esEscritorio ? styles.rootEscritorio : styles.rootMobile}>
+      <Toast message={mensaje} type={tipo} visible={visible} />
 
-      {/* Sidebar — solo se monta en desktop */}
-      {isDesktop && (
+      {esEscritorio && (
         <DesktopSidebar
-          active      ={activeTab}
-          onChange    ={setActiveTab}
-          badge       ={badge}
-          userName    ={user.nombre}
-          userInitial ={user.nombre[0].toUpperCase()}
-          onLogout    ={onLogout}
+          active     ={pestañaActiva}
+          onChange   ={setPestañaActiva}
+          badge      ={badge}
+          userName   ={usuario.nombre}
+          userInitial={usuario.nombre[0].toUpperCase()}
+          onLogout   ={onLogout}
         />
       )}
 
-      {/* Área de contenido */}
-      <div className={styles.content}>
-        <main className={styles.screen}>
-          {screens[activeTab]}
+      <div className={styles.contenido}>
+        <main className={styles.pantalla}>
+          {pestañaActiva === 'registrar'    && pantallas.registrar}
+          {pestañaActiva === 'historial'    && pantallas.historial}
+          {pestañaActiva === 'dashboard'    && pantallas.dashboard}
+          {pestañaActiva === 'deudas'       && pantallas.deudas}
+          {pestañaActiva === 'balance'      && pantallas.balance}
+          {pestañaActiva === 'presupuestos' && pantallas.presupuestos}
+          {pestañaActiva === 'config'       && pantallas.config}
         </main>
 
-        {/* BottomNav — solo se monta en mobile */}
-        {!isDesktop && (
-          <BottomNav active={activeTab} onChange={setActiveTab} badge={badge} />
+        {!esEscritorio && (
+          <BottomNav active={pestañaActiva} onChange={setPestañaActiva} badge={badge} />
         )}
       </div>
     </div>
+  );
+}
+
+interface AppShellProps {
+  usuario : Usuario;
+  onLogout: () => void;
+}
+
+export function AppShell({ usuario, onLogout }: AppShellProps) {
+  return (
+    <SesionProvider usuario={usuario} onLogout={onLogout}>
+      <ShellInterno onLogout={onLogout} />
+    </SesionProvider>
   );
 }

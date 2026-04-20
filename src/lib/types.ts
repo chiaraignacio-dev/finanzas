@@ -210,3 +210,13 @@ export interface ConsumoResumen {
   compartido  : boolean;
   division    : 'mitad' | 'prop' | 'personal';
 }
+
+// ── Presupuestos ───────────────────────────────────────
+export interface Presupuesto {
+  id          : string;
+  created_at  : string;
+  user_id     : string;
+  categoria   : string;
+  monto_limite: string;
+  activo      : boolean;
+}

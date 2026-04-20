@@ -1,24 +1,24 @@
+import { usarSesion, usarToast } from '../../context/SesionContext';
 import { useState } from 'react';
 import { Input, Select, Button, Card, Badge } from '../../components/ui';
 import { sbGet, sbPost, sbPatch } from '../../lib/supabase';
 import { crearDeudaInterpersonal } from '../../lib/deudas.service';
 import { fmt, FISO, partePorDiv } from '../../lib/utils';
 import { CATEGORIAS } from '../../lib/types';
-import type { Usuario, MedioPago, ResumenTarjeta, ConsumoResumen } from '../../lib/types';
+import type { ResumenTarjeta, ConsumoResumen } from '../../lib/types';
 import styles from './ResumenForm.module.css';
 
-interface Props {
-  user    : Usuario;
-  medios  : MedioPago[];
-  allUsers: Record<string, Usuario>;
-  prop    : number;
-  onToast : (msg: string, type?: 'ok' | 'err' | 'warn') => void;
-  onDone  : () => void;
-}
+interface Props { onDone: () => void; }
 
 const CAT_OPTIONS = CATEGORIAS.map(c => ({ value: c, label: c }));
 
-export function ResumenForm({ user, medios, allUsers, prop, onToast, onDone }: Props) {
+export function ResumenForm({ onDone }: Props) {
+  const sesion = usarSesion();
+  const user = sesion.usuario;
+  const medios: import('../../lib/types').MedioPago[] = sesion.medios;
+  const allUsers: Record<string, import('../../lib/types').Usuario> = sesion.todosUsuarios;
+  const prop = sesion.proporcion;
+  const { mostrar: onToast } = usarToast();
   const [tarjeta,   setTarjeta]   = useState('');
   const [periodo,   setPeriodo]   = useState('');
   const [vcto,      setVcto]      = useState('');
@@ -38,7 +38,7 @@ export function ResumenForm({ user, medios, allUsers, prop, onToast, onDone }: P
   const [loading,   setLoading]   = useState(false);
   const [error,     setError]     = useState('');
 
-  const pareja = Object.values(allUsers).find(u => u.id !== user.id);
+  const pareja = Object.values(allUsers).find((u: any) => u.id !== user.id);
 
   const medioOptions = medios
     .filter(m => m.tipo === 'credito')

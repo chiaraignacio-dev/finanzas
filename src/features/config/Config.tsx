@@ -1,34 +1,37 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect }         from 'react';
 import { Input, Select, Button, Card } from '../../components/ui';
-import { RadioGroup } from '../../components/ui';
-import { PageHeader } from '../../components/ui';
-import { sbGet, sbPost, sbPatch } from '../../lib/supabase';
-import { hash, fmt } from '../../lib/utils';
-import type { Usuario, MedioPago, Meta } from '../../lib/types';
-import styles from './Config.module.css';
+import { RadioGroup }                  from '../../components/ui';
+import { PageHeader }                  from '../../components/ui';
+import { ConfirmDialog }               from '../../components/ui/ConfirmDialog';
+import { usarSesion, usarToast }       from '../../context/SesionContext';
+import { sbGet, sbPost, sbPatch }      from '../../lib/supabase';
+import { hash, fmt, num }              from '../../lib/utils';
+import type { MedioPago, Meta }        from '../../lib/types';
+import styles                          from './Config.module.css';
 
-interface Props {
-  user    : Usuario;
-  onToast : (msg: string, type?: 'ok' | 'err' | 'warn') => void;
-  onLogout: () => void;
-  onReload: () => void;
-}
+interface Props { onLogout: () => void; }
 
-const TIPO_MEDIO_OPTIONS = [
-  { value: 'credito',  label: 'Tarjeta de crédito' },
-  { value: 'debito',   label: 'Tarjeta de débito' },
-  { value: 'efectivo', label: 'Efectivo / QR / Transfer' },
-  { value: 'billetera',label: 'Billetera virtual' },
+const OPCIONES_TIPO_MEDIO = [
+  { value: 'credito',   label: 'Tarjeta de crédito' },
+  { value: 'debito',    label: 'Tarjeta de débito' },
+  { value: 'efectivo',  label: 'Efectivo / QR / Transfer' },
+  { value: 'billetera', label: 'Billetera virtual' },
 ];
 
-const COBRO_OPTIONS = [
+const OPCIONES_COBRO = [
   { value: 'fijo', label: 'Mensual fijo' },
   { value: 'q',    label: 'Por quincena' },
 ];
 
-export function Config({ user, onToast, onLogout, onReload }: Props) {
-  const [medios,  setMedios]  = useState<MedioPago[]>([]);
-  const [metas,   setMetas]   = useState<Meta[]>([]);
+// ── Estado inicial del form de nuevo medio ─────────────
+const MEDIO_VACIO = { nombre: '', tipo: '', banco: '', cierre: '', limite: '', deuda: '' };
+const META_VACIA  = { nombre: '', emoji: '🎯', monto: '', fecha: '', compartida: 'no' };
+
+export function Config({ onLogout }: Props) {
+  const { usuario, recargar }         = usarSesion();
+  const { mostrar: mostrarToast }     = usarToast();
+  const [medios,     setMedios]       = useState<MedioPago[]>([]);
+  const [metas,      setMetas]        = useState<Meta[]>([]);
 
   // Ingresos
   const [cobro,   setCobro]   = useState('fijo');
@@ -36,136 +39,154 @@ export function Config({ user, onToast, onLogout, onReload }: Props) {
   const [ingQ1,   setIngQ1]   = useState('');
   const [ingQ2,   setIngQ2]   = useState('');
 
-  // Nuevo medio
-  const [showMedio, setShowMedio] = useState(false);
-  const [nmNombre,  setNmNombre]  = useState('');
-  const [nmTipo,    setNmTipo]    = useState('');
-  const [nmBanco,   setNmBanco]   = useState('');
-  const [nmCierre,  setNmCierre]  = useState('');
-  const [nmLimite,  setNmLimite]  = useState('');
-  const [nmDeuda,   setNmDeuda]   = useState('');
-
-  // Nueva meta
-  const [showMeta,  setShowMeta]  = useState(false);
-  const [metNombre, setMetNombre] = useState('');
-  const [metEmoji,  setMetEmoji]  = useState('🎯');
-  const [metMonto,  setMetMonto]  = useState('');
-  const [metFecha,  setMetFecha]  = useState('');
-  const [metComp,   setMetComp]   = useState('no');
+  // Forms agrupados
+  const [mostrarMedio,  setMostrarMedio]  = useState(false);
+  const [mostrarMeta,   setMostrarMeta]   = useState(false);
+  const [nuevoMedio,    setNuevoMedio]    = useState(MEDIO_VACIO);
+  const [nuevaMeta,     setNuevaMeta]     = useState(META_VACIA);
 
   // Contraseña
   const [np1, setNp1] = useState('');
   const [np2, setNp2] = useState('');
 
+  // Confirm dialog
+  const [confirmando, setConfirmando] = useState<{ tipo: 'medio' | 'meta'; id: string } | null>(null);
+
   useEffect(() => {
-    sbGet<MedioPago>('medios_pago', { user_id: `eq.${user.id}`, activo: 'eq.true' }).then(setMedios);
-    sbGet<Meta>('metas', { user_id: `eq.${user.id}`, activa: 'eq.true' }).then(setMetas);
+    sbGet<MedioPago>('medios_pago', { user_id: `eq.${usuario.id}`, activo: 'eq.true' }).then(setMedios);
+    sbGet<Meta>('metas',       { user_id: `eq.${usuario.id}`, activa: 'eq.true'  }).then(setMetas);
 
-    // Prellenar ingresos
-    if (user.ingreso_q1 || user.ingreso_q2) {
+    if (usuario.ingreso_q1 || usuario.ingreso_q2) {
       setCobro('q');
-      setIngQ1(String(user.ingreso_q1 || ''));
-      setIngQ2(String(user.ingreso_q2 || ''));
+      setIngQ1(String(usuario.ingreso_q1 || ''));
+      setIngQ2(String(usuario.ingreso_q2 || ''));
     } else {
-      setIngFijo(String(user.ingreso_fijo || ''));
+      setIngFijo(String(usuario.ingreso_fijo || ''));
     }
-  }, [user]);
+  }, [usuario]);
 
-  async function saveIngresos() {
-    const payload = cobro === 'fijo'
-      ? { ingreso_fijo: parseFloat(ingFijo) || 0, ingreso_q1: 0, ingreso_q2: 0 }
-      : { ingreso_q1: parseFloat(ingQ1) || 0, ingreso_q2: parseFloat(ingQ2) || 0, ingreso_fijo: 0 };
-    try {
-      await sbPatch('usuarios', user.id, payload);
-      onToast('Ingresos guardados ✓');
-      onReload();
-    } catch { onToast('Error', 'err'); }
+  // ── Helpers de campo agrupado ──────────────────────
+  function actualizarMedio(campo: string, valor: string) {
+    setNuevoMedio(prev => ({ ...prev, [campo]: valor }));
+  }
+  function actualizarMeta(campo: string, valor: string) {
+    setNuevaMeta(prev => ({ ...prev, [campo]: valor }));
   }
 
-  async function saveMedio() {
-    if (!nmNombre) { onToast('Ingresá un nombre', 'err'); return; }
+  // ── Ingresos ───────────────────────────────────────
+  async function guardarIngresos() {
+    const payload = cobro === 'fijo'
+      ? { ingreso_fijo: num(ingFijo), ingreso_q1: 0, ingreso_q2: 0 }
+      : { ingreso_q1: num(ingQ1), ingreso_q2: num(ingQ2), ingreso_fijo: 0 };
+    try {
+      await sbPatch('usuarios', usuario.id, payload);
+      mostrarToast('Ingresos guardados ✓');
+      recargar();
+    } catch { mostrarToast('Error', 'err'); }
+  }
+
+  // ── Medios ─────────────────────────────────────────
+  async function guardarMedio() {
+    if (!nuevoMedio.nombre) { mostrarToast('Ingresá un nombre', 'err'); return; }
     try {
       await sbPost('medios_pago', {
-        user_id    : user.id,
-        nombre     : nmNombre,
-        tipo       : nmTipo || null,
-        banco      : nmBanco || null,
-        dia_cierre : nmCierre || null,
-        limite     : parseFloat(nmLimite) || null,
-        saldo_deuda: parseFloat(nmDeuda) || 0,
+        user_id    : usuario.id,
+        nombre     : nuevoMedio.nombre,
+        tipo       : nuevoMedio.tipo    || null,
+        banco      : nuevoMedio.banco   || null,
+        dia_cierre : nuevoMedio.cierre  || null,
+        limite     : num(nuevoMedio.limite) || null,
+        saldo_deuda: num(nuevoMedio.deuda),
         activo     : true,
         datos_extra: {},
       });
-      onToast('Medio agregado ✓');
-      setShowMedio(false);
-      setNmNombre(''); setNmTipo(''); setNmBanco(''); setNmCierre(''); setNmLimite(''); setNmDeuda('');
-      const m = await sbGet<MedioPago>('medios_pago', { user_id: `eq.${user.id}`, activo: 'eq.true' });
+      mostrarToast('Medio agregado ✓');
+      setMostrarMedio(false);
+      setNuevoMedio(MEDIO_VACIO);
+      const m = await sbGet<MedioPago>('medios_pago', { user_id: `eq.${usuario.id}`, activo: 'eq.true' });
       setMedios(m);
-      onReload();
-    } catch { onToast('Error', 'err'); }
+      recargar();
+    } catch { mostrarToast('Error', 'err'); }
   }
 
-  async function delMedio(id: string) {
-    if (!confirm('¿Eliminar?')) return;
+  async function eliminarMedio(id: string) {
     await sbPatch('medios_pago', id, { activo: false });
     setMedios(m => m.filter(x => x.id !== id));
-    onReload();
+    recargar();
   }
 
-  async function saveMeta() {
-    if (!metNombre || !metMonto) { onToast('Completá nombre y monto', 'err'); return; }
+  // ── Metas ──────────────────────────────────────────
+  async function guardarMeta() {
+    if (!nuevaMeta.nombre || !nuevaMeta.monto) { mostrarToast('Completá nombre y monto', 'err'); return; }
     try {
       await sbPost('metas', {
-        user_id       : user.id,
-        nombre        : metNombre,
-        emoji         : metEmoji || '🎯',
-        monto_objetivo: parseFloat(metMonto),
+        user_id       : usuario.id,
+        nombre        : nuevaMeta.nombre,
+        emoji         : nuevaMeta.emoji  || '🎯',
+        monto_objetivo: num(nuevaMeta.monto),
         monto_actual  : 0,
-        fecha_objetivo: metFecha || null,
+        fecha_objetivo: nuevaMeta.fecha || null,
         activa        : true,
-        es_compartida : metComp === 'si',
+        es_compartida : nuevaMeta.compartida === 'si',
       });
-      onToast('Meta creada ✓');
-      setShowMeta(false);
-      setMetNombre(''); setMetEmoji('🎯'); setMetMonto(''); setMetFecha(''); setMetComp('no');
-      const m = await sbGet<Meta>('metas', { user_id: `eq.${user.id}`, activa: 'eq.true' });
+      mostrarToast('Meta creada ✓');
+      setMostrarMeta(false);
+      setNuevaMeta(META_VACIA);
+      const m = await sbGet<Meta>('metas', { user_id: `eq.${usuario.id}`, activa: 'eq.true' });
       setMetas(m);
-    } catch { onToast('Error', 'err'); }
+    } catch { mostrarToast('Error', 'err'); }
   }
 
-  async function delMeta(id: string) {
-    if (!confirm('¿Eliminar esta meta?')) return;
+  async function eliminarMeta(id: string) {
     await sbPatch('metas', id, { activa: false });
     setMetas(m => m.filter(x => x.id !== id));
   }
 
-  async function changePass() {
-    if (!np1 || np1 !== np2) { onToast(np1 ? 'No coinciden' : 'Ingresá contraseña', 'err'); return; }
-    if (np1.length < 4)      { onToast('Mínimo 4 caracteres', 'err'); return; }
+  // ── Contraseña ─────────────────────────────────────
+  async function cambiarContrasena() {
+    if (!np1 || np1 !== np2) { mostrarToast(np1 ? 'No coinciden' : 'Ingresá contraseña', 'err'); return; }
+    if (np1.length < 4)      { mostrarToast('Mínimo 4 caracteres', 'err'); return; }
     try {
-      await sbPatch('usuarios', user.id, { password_hash: hash(np1) });
-      onToast('Contraseña actualizada ✓');
+      await sbPatch('usuarios', usuario.id, { password_hash: hash(np1) });
+      mostrarToast('Contraseña actualizada ✓');
       setNp1(''); setNp2('');
-    } catch { onToast('Error', 'err'); }
+    } catch { mostrarToast('Error', 'err'); }
+  }
+
+  // ── Confirm handler ────────────────────────────────
+  function confirmarEliminacion() {
+    if (!confirmando) return;
+    if (confirmando.tipo === 'medio') eliminarMedio(confirmando.id);
+    if (confirmando.tipo === 'meta')  eliminarMeta(confirmando.id);
+    setConfirmando(null);
   }
 
   return (
     <div>
+      <ConfirmDialog
+        abierto    ={!!confirmando}
+        mensaje    ={confirmando?.tipo === 'medio' ? '¿Eliminás este medio de pago?' : '¿Eliminás esta meta?'}
+        peligroso
+        labelConfirmar="Sí, eliminar"
+        onConfirmar={confirmarEliminacion}
+        onCancelar ={() => setConfirmando(null)}
+      />
+
       <PageHeader
-        title="Configuración"
-        subtitle={`@${user.username}`}
+        title   ="Configuración"
+        subtitle={`@${usuario.username}`}
         right={
           <Button variant="ghost" size="sm" onClick={onLogout}
-            style={{ color: 'var(--rd)', border: '1px solid rgba(239,68,68,0.4)' }}>
+            style={{ color: 'var(--rd)', border: '1px solid rgba(224,90,90,0.4)' }}>
             Salir
           </Button>
         }
       />
 
       {/* Ingresos */}
-      <div className={styles.slab}>Mis ingresos</div>
-      <Card className={styles.section}>
-        <RadioGroup name="cobro" label="¿Cómo cobrás?" options={COBRO_OPTIONS} value={cobro} onChange={setCobro} />
+      <div className={styles.seccion}>Mis ingresos</div>
+      <Card className={styles.card}>
+        <RadioGroup name="cobro" label="¿Cómo cobrás?" options={OPCIONES_COBRO} value={cobro} onChange={setCobro} />
         {cobro === 'fijo'
           ? <Input label="Ingreso mensual neto ($)" type="number" value={ingFijo} onChange={e => setIngFijo(e.target.value)} fullWidth />
           : <>
@@ -173,94 +194,94 @@ export function Config({ user, onToast, onLogout, onReload }: Props) {
               <Input label="2da quincena ($)" type="number" value={ingQ2} onChange={e => setIngQ2(e.target.value)} fullWidth />
             </>
         }
-        <Button variant="primary" fullWidth onClick={saveIngresos}>Guardar ingresos</Button>
+        <Button variant="primary" fullWidth onClick={guardarIngresos}>Guardar ingresos</Button>
       </Card>
 
       {/* Medios */}
-      <div className={styles.slab}>Mis medios de pago</div>
-      <Card className={styles.section}>
-        {medios.length === 0 && <div className={styles.empty}>Sin medios configurados</div>}
+      <div className={styles.seccion}>Mis medios de pago</div>
+      <Card className={styles.card}>
+        {medios.length === 0 && <div className={styles.vacio}>Sin medios configurados</div>}
         {medios.map(m => (
-          <div key={m.id} className={styles.listItem}>
+          <div key={m.id} className={styles.fila}>
             <div>
-              <div className={styles.listTitle}>{m.nombre}</div>
-              <div className={styles.listSub}>{m.tipo || '—'} · {m.banco || '—'}{m.dia_cierre ? ' · ' + m.dia_cierre : ''}</div>
+              <div className={styles.filaTitulo}>{m.nombre}</div>
+              <div className={styles.filaSubtitulo}>{m.tipo || '—'} · {m.banco || '—'}{m.dia_cierre ? ' · ' + m.dia_cierre : ''}</div>
               {m.saldo_deuda ? <div style={{ fontSize: 11, color: 'var(--rd)' }}>Deuda: {fmt(m.saldo_deuda)}</div> : null}
             </div>
-            <Button variant="ghost" size="sm" onClick={() => delMedio(m.id)}
-              style={{ color: 'var(--rd)', border: '1px solid rgba(239,68,68,0.3)' }}>✕</Button>
+            <Button variant="ghost" size="sm" onClick={() => setConfirmando({ tipo: 'medio', id: m.id })}
+              style={{ color: 'var(--rd)', border: '1px solid rgba(224,90,90,0.3)' }}>✕</Button>
           </div>
         ))}
       </Card>
-      <div style={{ margin: '0 16px 12px' }}>
-        <Button variant="secondary" fullWidth onClick={() => setShowMedio(v => !v)}>+ Agregar medio de pago</Button>
+      <div className={styles.accion}>
+        <Button variant="secondary" fullWidth onClick={() => setMostrarMedio(v => !v)}>+ Agregar medio de pago</Button>
       </div>
-      {showMedio && (
-        <Card className={styles.section}>
-          <div className={styles.sectionTitle}>Nuevo medio de pago</div>
-          <Input label="Nombre *" placeholder="Visa Galicia, Naranja X…" value={nmNombre} onChange={e => setNmNombre(e.target.value)} fullWidth />
-          <Select label="Tipo" options={TIPO_MEDIO_OPTIONS} value={nmTipo} onChange={e => setNmTipo(e.target.value)} placeholder="—" fullWidth />
-          <Input label="Banco / Entidad" placeholder="BBVA, Uala…" value={nmBanco} onChange={e => setNmBanco(e.target.value)} fullWidth />
-          <Input label="Día de cierre" placeholder="Ej: último jueves del mes" value={nmCierre} onChange={e => setNmCierre(e.target.value)} fullWidth />
-          <Input label="Límite de crédito ($)" type="number" value={nmLimite} onChange={e => setNmLimite(e.target.value)} fullWidth />
-          <Input label="Saldo deuda actual ($)" type="number" value={nmDeuda} onChange={e => setNmDeuda(e.target.value)} fullWidth />
-          <Button variant="primary" fullWidth onClick={saveMedio}>Guardar</Button>
-          <Button variant="secondary" fullWidth onClick={() => setShowMedio(false)}>Cancelar</Button>
+      {mostrarMedio && (
+        <Card className={styles.card}>
+          <div className={styles.tituloCard}>Nuevo medio de pago</div>
+          <Input label="Nombre *" placeholder="Visa Galicia, Naranja X…" value={nuevoMedio.nombre} onChange={e => actualizarMedio('nombre', e.target.value)} fullWidth />
+          <Select label="Tipo" options={OPCIONES_TIPO_MEDIO} value={nuevoMedio.tipo} onChange={e => actualizarMedio('tipo', e.target.value)} placeholder="—" fullWidth />
+          <Input label="Banco / Entidad" placeholder="BBVA, Uala…" value={nuevoMedio.banco} onChange={e => actualizarMedio('banco', e.target.value)} fullWidth />
+          <Input label="Día de cierre" placeholder="Ej: último jueves del mes" value={nuevoMedio.cierre} onChange={e => actualizarMedio('cierre', e.target.value)} fullWidth />
+          <Input label="Límite de crédito ($)" type="number" value={nuevoMedio.limite} onChange={e => actualizarMedio('limite', e.target.value)} fullWidth />
+          <Input label="Saldo deuda actual ($)" type="number" value={nuevoMedio.deuda} onChange={e => actualizarMedio('deuda', e.target.value)} fullWidth />
+          <Button variant="primary" fullWidth onClick={guardarMedio}>Guardar</Button>
+          <Button variant="secondary" fullWidth onClick={() => setMostrarMedio(false)}>Cancelar</Button>
         </Card>
       )}
 
       {/* Metas */}
-      <div className={styles.slab}>Mis metas de ahorro</div>
-      <Card className={styles.section}>
-        {metas.length === 0 && <div className={styles.empty}>Sin metas creadas aún</div>}
+      <div className={styles.seccion}>Mis metas de ahorro</div>
+      <Card className={styles.card}>
+        {metas.length === 0 && <div className={styles.vacio}>Sin metas creadas aún</div>}
         {metas.map(m => {
-          const p = parseFloat(m.monto_objetivo) ? Math.min(100, parseFloat(m.monto_actual) / parseFloat(m.monto_objetivo) * 100) : 0;
+          const p = num(m.monto_objetivo) ? Math.min(100, num(m.monto_actual) / num(m.monto_objetivo) * 100) : 0;
           return (
             <div key={m.id} className={styles.metaItem}>
-              <div className={styles.listItem}>
+              <div className={styles.fila}>
                 <div>
-                  <div className={styles.listTitle}>{m.emoji || '🎯'} {m.nombre}</div>
-                  {m.fecha_objetivo && <div className={styles.listSub}>{new Date(m.fecha_objetivo).toLocaleDateString('es-AR')}</div>}
+                  <div className={styles.filaTitulo}>{m.emoji || '🎯'} {m.nombre}</div>
+                  {m.fecha_objetivo && <div className={styles.filaSubtitulo}>{new Date(m.fecha_objetivo).toLocaleDateString('es-AR')}</div>}
                 </div>
-                <Button variant="ghost" size="sm" onClick={() => delMeta(m.id)}
-                  style={{ color: 'var(--rd)', border: '1px solid rgba(239,68,68,0.3)' }}>✕</Button>
+                <Button variant="ghost" size="sm" onClick={() => setConfirmando({ tipo: 'meta', id: m.id })}
+                  style={{ color: 'var(--rd)', border: '1px solid rgba(224,90,90,0.3)' }}>✕</Button>
               </div>
-              <div className={styles.barWrap}>
-                <div className={styles.barLabels}>
-                  <span>{fmt(parseFloat(m.monto_actual))}</span>
-                  <span>de {fmt(parseFloat(m.monto_objetivo))}</span>
+              <div className={styles.barraWrap}>
+                <div className={styles.barraEtiquetas}>
+                  <span>{fmt(num(m.monto_actual))}</span>
+                  <span>de {fmt(num(m.monto_objetivo))}</span>
                 </div>
-                <div className={styles.bar}><div className={styles.barFill} style={{ width: `${p.toFixed(0)}%` }} /></div>
-                <div className={styles.barPct}>{p.toFixed(1)}%</div>
+                <div className={styles.barra}><div className={styles.barraRelleno} style={{ width: `${p.toFixed(0)}%` }} /></div>
+                <div className={styles.barraPct}>{p.toFixed(1)}%</div>
               </div>
             </div>
           );
         })}
       </Card>
-      <div style={{ margin: '0 16px 12px' }}>
-        <Button variant="secondary" fullWidth onClick={() => setShowMeta(v => !v)}>+ Nueva meta</Button>
+      <div className={styles.accion}>
+        <Button variant="secondary" fullWidth onClick={() => setMostrarMeta(v => !v)}>+ Nueva meta</Button>
       </div>
-      {showMeta && (
-        <Card className={styles.section}>
-          <div className={styles.sectionTitle}>Nueva meta</div>
-          <Input label="Nombre *" placeholder="Primer auto, Viaje…" value={metNombre} onChange={e => setMetNombre(e.target.value)} fullWidth />
+      {mostrarMeta && (
+        <Card className={styles.card}>
+          <div className={styles.tituloCard}>Nueva meta</div>
+          <Input label="Nombre *" placeholder="Primer auto, Viaje…" value={nuevaMeta.nombre} onChange={e => actualizarMeta('nombre', e.target.value)} fullWidth />
           <div style={{ display: 'flex', gap: 10 }}>
-            <Input label="Emoji" value={metEmoji} onChange={e => setMetEmoji(e.target.value)} style={{ width: 70, fontSize: 22, textAlign: 'center' }} />
-            <Input label="Monto objetivo ($) *" type="number" value={metMonto} onChange={e => setMetMonto(e.target.value)} fullWidth />
+            <Input label="Emoji" value={nuevaMeta.emoji} onChange={e => actualizarMeta('emoji', e.target.value)} style={{ width: 70, fontSize: 22, textAlign: 'center' }} />
+            <Input label="Monto objetivo ($) *" type="number" value={nuevaMeta.monto} onChange={e => actualizarMeta('monto', e.target.value)} fullWidth />
           </div>
-          <Input label="Fecha objetivo" type="date" value={metFecha} onChange={e => setMetFecha(e.target.value)} fullWidth />
-          <RadioGroup name="metComp" label="¿Es compartida?" options={[{ value: 'si', label: 'Sí — aparece en Hogar' }, { value: 'no', label: 'No — solo la veo yo' }]} value={metComp} onChange={setMetComp} />
-          <Button variant="primary" fullWidth onClick={saveMeta}>Crear meta</Button>
-          <Button variant="secondary" fullWidth onClick={() => setShowMeta(false)}>Cancelar</Button>
+          <Input label="Fecha objetivo" type="date" value={nuevaMeta.fecha} onChange={e => actualizarMeta('fecha', e.target.value)} fullWidth />
+          <RadioGroup name="metComp" label="¿Es compartida?" options={[{ value: 'si', label: 'Sí — aparece en Hogar' }, { value: 'no', label: 'No — solo la veo yo' }]} value={nuevaMeta.compartida} onChange={v => actualizarMeta('compartida', v)} />
+          <Button variant="primary" fullWidth onClick={guardarMeta}>Crear meta</Button>
+          <Button variant="secondary" fullWidth onClick={() => setMostrarMeta(false)}>Cancelar</Button>
         </Card>
       )}
 
       {/* Seguridad */}
-      <div className={styles.slab}>Seguridad</div>
-      <Card className={styles.section}>
+      <div className={styles.seccion}>Seguridad</div>
+      <Card className={styles.card}>
         <Input label="Nueva contraseña" type="password" placeholder="Mínimo 4 caracteres" value={np1} onChange={e => setNp1(e.target.value)} fullWidth />
         <Input label="Confirmar" type="password" placeholder="Repetí la contraseña" value={np2} onChange={e => setNp2(e.target.value)} fullWidth />
-        <Button variant="secondary" fullWidth onClick={changePass}>Cambiar contraseña</Button>
+        <Button variant="secondary" fullWidth onClick={cambiarContrasena}>Cambiar contraseña</Button>
       </Card>
       <div style={{ height: 16 }} />
     </div>

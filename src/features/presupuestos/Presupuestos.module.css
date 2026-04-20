@@ -1,0 +1,112 @@
+.cardResumen {
+  margin        : 0 16px 12px;
+  display       : flex;
+  flex-direction: column;
+  gap           : 8px;
+}
+
+.resumenFila {
+  display        : flex;
+  justify-content: space-between;
+  align-items    : center;
+  font-size      : 13px;
+}
+
+.resumenEtiqueta { color: var(--tx3); }
+.resumenMonto    { font-family: var(--font-mono); font-weight: 600; }
+
+.cardPresupuesto {
+  margin        : 0 16px 10px;
+  display       : flex;
+  flex-direction: column;
+  gap           : 10px;
+}
+
+.encabezado {
+  display        : flex;
+  justify-content: space-between;
+  align-items    : flex-start;
+}
+
+.categoria { font-size: 14px; font-weight: 600; }
+.montos    { font-size: 13px; margin-top: 2px; font-family: var(--font-mono); }
+
+.encabezadoDerecha {
+  display    : flex;
+  align-items: center;
+  gap        : 8px;
+}
+
+.botonEliminar {
+  background: none;
+  border    : none;
+  color     : var(--tx3);
+  cursor    : pointer;
+  font-size : 13px;
+  padding   : 2px 4px;
+  line-height: 1;
+}
+
+.barraWrap { width: 100%; }
+
+.barra {
+  height       : 6px;
+  background   : var(--sf2);
+  border-radius: 3px;
+  overflow     : hidden;
+}
+
+.barraRelleno {
+  height       : 100%;
+  border-radius: 3px;
+  transition   : width 0.5s ease;
+}
+
+.barraPct {
+  font-size : 11px;
+  color     : var(--tx3);
+  margin-top: 4px;
+}
+
+.piePie {
+  display        : flex;
+  justify-content: space-between;
+  font-size      : 12px;
+}
+
+.cardForm {
+  margin        : 0 16px 12px;
+  display       : flex;
+  flex-direction: column;
+  gap           : 12px;
+}
+
+.formTitulo {
+  font-size     : 11px;
+  font-weight   : 600;
+  color         : var(--tx3);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.vacio {
+  display        : flex;
+  flex-direction : column;
+  align-items    : center;
+  justify-content: center;
+  padding        : 40px 24px;
+  color          : var(--tx2);
+  text-align     : center;
+  font-size      : 14px;
+}
+
+.cargando { display: flex; justify-content: center; padding: 60px; }
+.spinner  {
+  width          : 28px;
+  height         : 28px;
+  border         : 3px solid var(--bd2);
+  border-top-color: var(--ac);
+  border-radius  : 50%;
+  animation      : girar 0.8s linear infinite;
+}
+@keyframes girar { to { transform: rotate(360deg); } }

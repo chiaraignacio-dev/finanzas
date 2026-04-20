@@ -3,16 +3,15 @@ import { Card } from '../../components/ui';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { IngresosPendientes } from '../ingresos/IngresosPendientes';
 import { sbGet } from '../../lib/supabase';
+import { usarSesion } from '../../context/SesionContext';
 import { fmt, fmtK, FLAB, DESDE_MES } from '../../lib/utils';
-import type { Usuario, Movimiento, Servicio, Meta, ResumenTarjeta, Ingreso } from '../../lib/types';
+import type { Movimiento, Servicio, Meta, ResumenTarjeta, Ingreso } from '../../lib/types';
 import styles from './Dashboard.module.css';
 
-interface Props {
-  user    : Usuario;
-  allUsers: Record<string, Usuario>;
-}
-
-export function Dashboard({ user, allUsers }: Props) {
+export function Dashboard() {
+  const sesion = usarSesion();
+  const user = sesion.usuario;
+  const allUsers = sesion.todosUsuarios;
   const [mode,      setMode]      = useState<'yo' | 'hogar'>('yo');
   const [gas,       setGas]       = useState(0);
   const [falta,     setFalta]     = useState(0);
@@ -85,7 +84,7 @@ export function Dashboard({ user, allUsers }: Props) {
         .reduce((a, s) => a + parseFloat(s.mi_parte || '0'), 0);
       const tarjP  = resumenes.reduce((a, r) => a + parseFloat(r.monto_total) - parseFloat(r.monto_pagado), 0);
 
-      const m = await sbGet<Meta>('metas', { user_id: `eq.${user.id}`, activa: 'eq.true' });
+      const m = await sbGet<Meta>('metas', { user_id: `eq.${user.id}`, activa: 'eq.true' }, 30_000);
 
       const totalGas = gasTotal + pagosDeuda;
       setGas(totalGas);
@@ -144,8 +143,16 @@ export function Dashboard({ user, allUsers }: Props) {
       {/* Metas */}
       <div className={styles.slab}>Metas de ahorro</div>
       <Card style={{ margin: '0 16px 12px', padding: '12px 16px' }}>
-        {metas.length === 0 && <div className={styles.empty}>Sin metas. Creá una en Config.</div>}
-        {metas.map(m => {
+        {(() => {
+          const filtradas = mode === 'yo'
+            ? metas.filter(m => !m.es_compartida)
+            : metas.filter(m => m.es_compartida);
+          if (filtradas.length === 0) return (
+            <div className={styles.empty}>
+              {mode === 'yo' ? 'Sin metas personales. Creá una en Config.' : 'Sin metas compartidas aún.'}
+            </div>
+          );
+          return filtradas.map(m => {
           const p = parseFloat(m.monto_objetivo)
             ? Math.min(100, (parseFloat(m.monto_actual) / parseFloat(m.monto_objetivo)) * 100)
             : 0;
@@ -162,7 +169,8 @@ export function Dashboard({ user, allUsers }: Props) {
               <div className={styles.barPct}>{p.toFixed(1)}%</div>
             </div>
           );
-        })}
+          });
+        })()}
       </Card>
 
       {/* Semáforo */}

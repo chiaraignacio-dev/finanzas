@@ -2,16 +2,12 @@ import { useState, useEffect, useCallback } from 'react';
 import { Card, Badge, Button } from '../../../components/ui';
 import { PageHeader } from '../../../components/ui/PageHeader';
 import { sbGet, sbPatch } from '../../../lib/supabase';
+import { usarSesion, usarToast } from '../../../context/SesionContext';
 import { fmt, fmtK } from '../../../lib/utils';
-import type { Usuario, Movimiento, Servicio } from '../../../lib/types';
+import type { Movimiento, Servicio } from '../../../lib/types';
 import styles from './Historial.module.css';
 
-interface Props {
-  user   : Usuario;
-  allUsers: Record<string, Usuario>;
-  onToast: (msg: string, type?: 'ok' | 'err' | 'warn') => void;
-  onBadge: (n: number) => void;
-}
+interface Props { onBadge: (n: number) => void; }
 
 const ICONS: Record<string, string> = {
   gasto: '🛒', deuda: '💳', ahorro: '🎯', ingreso: '💰', servicio: '🔌',
@@ -21,7 +17,11 @@ const ICONS_SRV: Record<string, string> = {
   luz: '⚡', agua: '💧', gas: '🔥', internet: '📡', expensas: '🏢',
 };
 
-export function Historial({ user, allUsers, onToast, onBadge }: Props) {
+export function Historial({ onBadge }: Props) {
+  const sesion = usarSesion();
+  const user = sesion.usuario;
+  const allUsers = sesion.todosUsuarios;
+  const { mostrar: onToast } = usarToast();
   const [mode,      setMode]      = useState<'yo' | 'hogar'>('yo');
   const [movs,      setMovs]      = useState<Movimiento[]>([]);
   const [pendientes,setPendientes]= useState<Movimiento[]>([]);
@@ -111,7 +111,7 @@ export function Historial({ user, allUsers, onToast, onBadge }: Props) {
         <div>
           <div className={styles.slab} style={{ color: 'var(--am)' }}>⏳ Gastos compartidos pendientes</div>
           {pendientes.map(r => {
-            const quien = Object.values(allUsers).find(u => u.id === r.user_id)?.nombre || 'Otro';
+            const quien = Object.values(allUsers).find((u: any) => u.id === r.user_id)?.nombre || 'Otro';
             return (
               <Card key={r.id} variant="pending" className={styles.pendCard}>
                 <div className={styles.pendTop}>
@@ -171,7 +171,7 @@ export function Historial({ user, allUsers, onToast, onBadge }: Props) {
           const esNeu  = r.tipo === 'ahorro';
           const color  = esPos ? 'var(--gn)' : esNeu ? 'var(--am)' : 'var(--rd)';
           const signo  = esPos ? '+' : '-';
-          const quien  = !isMine ? ` · de ${Object.values(allUsers).find(u => u.id === r.user_id)?.nombre || 'Otro'}` : '';
+          const quien  = !isMine ? ` · de ${Object.values(allUsers).find((u: any) => u.id === r.user_id)?.nombre || 'Otro'}` : '';
 
           return (
             <div key={r.id} className={styles.movItem}>

@@ -1,9 +1,11 @@
-export type TabId = 'registrar' | 'historial' | 'dashboard' | 'deudas' | 'config';
-
-export interface NavTab {
-  id   : TabId;
-  label: string;
-}
+export type TabId =
+  | 'registrar'
+  | 'historial'
+  | 'dashboard'
+  | 'deudas'
+  | 'balance'
+  | 'presupuestos'
+  | 'config';
 
 export interface BottomNavProps {
   active  : TabId;

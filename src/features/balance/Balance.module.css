@@ -1,0 +1,84 @@
+.cardNeto {
+  margin         : 0 16px 12px;
+  padding        : 28px 20px;
+  display        : flex;
+  flex-direction : column;
+  align-items    : center;
+  text-align     : center;
+  gap            : 8px;
+}
+
+.netoIcono  { font-size: 40px; }
+.netoTitulo { font-size: 16px; font-weight: 600; color: var(--tx2); }
+.netoMonto  { font-size: 42px; font-weight: 700; font-family: var(--font-mono); letter-spacing: -1px; }
+.netoSub    { font-size: 12px; color: var(--tx3); }
+
+.aFavor   { color: var(--gn); }
+.enContra { color: var(--rd); }
+
+.seccion {
+  font-size     : 10px;
+  font-weight   : 600;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  padding       : 14px 20px 8px;
+}
+
+.cardLista { margin: 0 16px 12px; }
+
+.filaDeuda {
+  display        : flex;
+  justify-content: space-between;
+  align-items    : flex-start;
+  padding        : 10px 0;
+  border-bottom  : 1px solid var(--bd);
+  gap            : 8px;
+}
+.filaDeuda:last-of-type { border-bottom: none; }
+
+.filaInfo   { flex: 1; min-width: 0; }
+.filaDesc   { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.filaMeta   { font-size: 11px; color: var(--tx3); margin-top: 2px; }
+.origen     { color: var(--tx3); }
+
+.filaDerecha {
+  display    : flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap        : 4px;
+  flex-shrink: 0;
+}
+.filaMonto { font-size: 14px; font-weight: 600; font-family: var(--font-mono); }
+
+.filaTotalizadora {
+  display        : flex;
+  justify-content: space-between;
+  padding        : 10px 0 2px;
+  font-size      : 12px;
+  font-weight    : 600;
+  color          : var(--tx3);
+  border-top     : 1px solid var(--bd2);
+  margin-top     : 4px;
+}
+
+.vacio {
+  display        : flex;
+  flex-direction : column;
+  align-items    : center;
+  justify-content: center;
+  padding        : 60px 24px;
+  color          : var(--tx3);
+  font-size      : 14px;
+  text-align     : center;
+}
+
+.cargando { display: flex; justify-content: center; padding: 60px; }
+.spinner  {
+  width          : 28px;
+  height         : 28px;
+  border         : 3px solid var(--bd2);
+  border-top-color: var(--ac);
+  border-radius  : 50%;
+  animation      : girar 0.8s linear infinite;
+}
+@keyframes girar { to { transform: rotate(360deg); } }

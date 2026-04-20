@@ -2,34 +2,39 @@ import { useState, useEffect } from 'react';
 import { Login }    from './features/login';
 import { AppShell } from './components/ui/AppShell';
 import { sbGet }    from './lib/supabase';
+import { cache }    from './lib/cache';
 import type { Usuario } from './lib/types';
 import './index.css';
 
 export default function App() {
-  const [user,     setUser]     = useState<Usuario | null>(null);
-  const [checking, setChecking] = useState(true);
+  const [usuario,    setUsuario]    = useState<Usuario | null>(null);
+  const [verificando, setVerificando] = useState(true);
 
   useEffect(() => {
-    async function restoreSession() {
-      const raw = localStorage.getItem('fin_s');
-      if (!raw) { setChecking(false); return; }
+    async function restaurarSesion() {
+      const guardado = localStorage.getItem('fin_s');
+      if (!guardado) { setVerificando(false); return; }
       try {
-        const { id } = JSON.parse(raw);
-        const users  = await sbGet<Usuario>('usuarios', { id: `eq.${id}` });
-        if (users.length) setUser(users[0]);
-      } catch { /* sesión inválida */ }
-      finally  { setChecking(false); }
+        const { id } = JSON.parse(guardado);
+        const usuarios = await sbGet<Usuario>('usuarios', { id: `eq.${id}` });
+        if (usuarios.length) setUsuario(usuarios[0]);
+      } catch {
+        localStorage.removeItem('fin_s');
+      } finally {
+        setVerificando(false);
+      }
     }
-    restoreSession();
+    restaurarSesion();
   }, []);
 
-  function handleLogout() {
+  function manejarLogout() {
+    cache.clear();
     localStorage.removeItem('fin_s');
-    setUser(null);
+    setUsuario(null);
   }
 
-  if (checking) return null;
-  if (!user)    return <Login onSuccess={setUser} />;
+  if (verificando) return null;
+  if (!usuario)    return <Login onSuccess={setUsuario} />;
 
-  return <AppShell user={user} onLogout={handleLogout} />;
+  return <AppShell usuario={usuario} onLogout={manejarLogout} />;
 }
