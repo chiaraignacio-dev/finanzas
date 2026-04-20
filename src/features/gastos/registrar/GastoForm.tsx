@@ -41,9 +41,10 @@ export function GastoForm({ onExito }: Props) {
 
   const medio     = medios.find(m => m.id === medioId);
   const esCred    = medio?.tipo === 'credito';
-  const esComp    = ['prop', 'mitad', 'novia'].includes(division);
+  const esComp = ['prop', 'mitad'].includes(division);
   const montoNum  = num(monto);
-  const miParte   = Math.round(partePorDiv(montoNum, division, proporcion));
+  const esDePareja = division === 'novia';
+  const miParte = esDePareja ? 0 : Math.round(partePorDiv(montoNum, division, proporcion));
   const parteOtro = Math.round(montoNum - miParte);
 
   const opsCat    = CATEGORIAS.map(c => ({ value: c, label: c }));
@@ -75,7 +76,7 @@ export function GastoForm({ onExito }: Props) {
         estado           : 'confirmado',
       });
 
-      if (esComp && parteOtro > 0 && pareja && division !== 'novia') {
+      if (parteOtro > 0 && pareja) {
         await crearDeudaInterpersonal({
           acreedorId  : usuario.id,
           deudorId    : pareja.id,
@@ -87,8 +88,8 @@ export function GastoForm({ onExito }: Props) {
         });
       }
 
-      const msg = esComp && parteOtro > 0 && division !== 'novia'
-        ? `Gasto guardado ✓ — ${pareja?.nombre || 'tu pareja'} te debe ${fmt(parteOtro)}`
+      const msg = parteOtro > 0 && pareja
+        ? `Gasto guardado ✓ — ${pareja.nombre} te debe ${fmt(parteOtro)}`
         : 'Gasto guardado ✓';
       onExito(msg);
     } catch (e: unknown) {
