@@ -55,7 +55,7 @@ export function Suscripciones() {
 
   return (
     <div className={styles.page}>
-      <PageHeader titulo="Suscripciones" />
+      <PageHeader title="Suscripciones" />
 
       {/* Resumen rápido */}
       <div className={styles.resumen}>
