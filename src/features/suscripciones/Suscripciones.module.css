@@ -1,0 +1,497 @@
+/* ── Page ─────────────────────────────────────────────── */
+.page {
+  padding: 0 0 6rem;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+/* ── Resumen rápido ───────────────────────────────────── */
+.resumen {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+  padding: 0 16px 1rem;
+}
+
+.resumenItem {
+  background: var(--card);
+  border-radius: 10px;
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  text-align: center;
+}
+
+.resumenLabel {
+  font-size: 0.7rem;
+  color: var(--tx2);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.resumenValor {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--tx);
+}
+
+.resumenValor.pendiente {
+  color: var(--am);
+}
+
+/* ── Sección header ──────────────────────────────────── */
+.seccionHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 16px 0.5rem;
+}
+
+.seccionTitulo {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--tx2);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.btnNueva {
+  background: var(--ac);
+  color: #fff;
+  border: none;
+  padding: 0.4rem 0.9rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* ── Lista ────────────────────────────────────────────── */
+.lista {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0 16px;
+}
+
+.cargando {
+  text-align: center;
+  color: var(--tx2);
+  padding: 3rem;
+  font-size: 0.9rem;
+}
+
+.vacio {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: var(--tx2);
+}
+
+.vacioEmoji {
+  font-size: 2.5rem;
+  display: block;
+  margin-bottom: 0.75rem;
+}
+
+.btnVacio {
+  margin-top: 1rem;
+  background: var(--ac);
+  color: #fff;
+  border: none;
+  padding: 0.5rem 1.25rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+/* ── Card ─────────────────────────────────────────────── */
+.card {
+  background: var(--card);
+  border-radius: 12px;
+  padding: 0.9rem 1rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  border: 1px solid transparent;
+  transition: border-color 0.2s;
+}
+
+.cardPagada {
+  border-color: var(--gn);
+  opacity: 0.8;
+}
+
+.cardEmoji {
+  font-size: 1.75rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.cardBody {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.cardTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.cardNombre {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--tx);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cardMonto {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--tx);
+  flex-shrink: 0;
+}
+
+.cardMeta {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.cardDiv {
+  font-size: 0.72rem;
+  color: var(--tx2);
+  background: var(--bg);
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+}
+
+.cardDesc {
+  font-size: 0.72rem;
+  color: var(--tx2);
+  font-style: italic;
+}
+
+.cardFooter {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: 0.15rem;
+}
+
+.badge {
+  font-size: 0.68rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 20px;
+  font-weight: 600;
+}
+
+.badgeOk {
+  background: rgba(34, 197, 94, 0.15);
+  color: var(--gn);
+}
+
+.badgePend {
+  background: rgba(251, 191, 36, 0.15);
+  color: var(--am);
+}
+
+.miniHistorial {
+  display: flex;
+  gap: 0.3rem;
+}
+
+.miniPago {
+  font-size: 0.65rem;
+  color: var(--tx2);
+  background: var(--bg);
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+}
+
+.cardAcciones {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  flex-shrink: 0;
+}
+
+.btnAccion {
+  background: none;
+  border: none;
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 0.2rem;
+  opacity: 0.6;
+  transition: opacity 0.15s;
+}
+
+.btnAccion:hover { opacity: 1; }
+
+/* ── Gráfico ──────────────────────────────────────────── */
+.grafico {
+  background: var(--card);
+  border-radius: 12px;
+  padding: 1rem;
+  margin: 0 16px 1rem;
+}
+
+.graficoTitulo {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--tx2);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 1rem;
+}
+
+.barras {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.4rem;
+  height: 80px;
+  margin-bottom: 0.5rem;
+}
+
+.barraCol {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+}
+
+.barraMonto {
+  font-size: 0.55rem;
+  color: var(--tx2);
+  margin-bottom: 0.2rem;
+  text-align: center;
+  min-height: 1em;
+  white-space: nowrap;
+}
+
+.barraWrap {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  align-items: flex-end;
+}
+
+.barra {
+  width: 100%;
+  background: var(--ac);
+  border-radius: 3px 3px 0 0;
+  opacity: 0.5;
+  min-height: 3px;
+  transition: height 0.3s ease;
+}
+
+.barraActual {
+  opacity: 1;
+}
+
+.barraLabel {
+  font-size: 0.65rem;
+  color: var(--tx2);
+  margin-top: 0.25rem;
+  text-transform: capitalize;
+}
+
+.barraLabelActual {
+  color: var(--ac);
+  font-weight: 700;
+}
+
+/* ── Desglose por suscripción ────────────────────────── */
+.desglose {
+  margin-top: 1rem;
+  border-top: 1px solid var(--borde, rgba(255,255,255,0.07));
+  padding-top: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.desgloseItem {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.78rem;
+  color: var(--tx2);
+}
+
+.desgloseItem > span:first-child {
+  min-width: 110px;
+  color: var(--tx);
+}
+
+.desgloseBarra {
+  flex: 1;
+  height: 5px;
+  background: var(--bg);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.desgloseRelleno {
+  height: 100%;
+  background: var(--ac);
+  border-radius: 3px;
+  opacity: 0.7;
+  transition: width 0.3s ease;
+}
+
+.desgloseMonto {
+  min-width: 60px;
+  text-align: right;
+  font-weight: 600;
+  color: var(--tx);
+}
+
+/* ── Modal ────────────────────────────────────────────── */
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 100;
+}
+
+.modal {
+  background: var(--bg);
+  border-radius: 20px 20px 0 0;
+  padding: 1.5rem 1rem 2rem;
+  width: 100%;
+  max-width: 600px;
+  max-height: 90vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.modalHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.modalTitulo {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.btnCerrar {
+  background: none;
+  border: none;
+  font-size: 1.2rem;
+  color: var(--tx2);
+  cursor: pointer;
+  padding: 0.25rem;
+}
+
+.emojiGrid {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.emojiBtn {
+  font-size: 1.4rem;
+  padding: 0.35rem;
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background: var(--card);
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.emojiActivo {
+  border-color: var(--ac);
+}
+
+.error {
+  font-size: 0.85rem;
+  color: var(--rj, #ef4444);
+  background: rgba(239, 68, 68, 0.1);
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+}
+
+/* ── Toggle suscripción en ResumenForm ───────────────── */
+.subToggleRow {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.5rem 0;
+}
+
+.subToggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: var(--tx2);
+  user-select: none;
+}
+
+.subToggle input { display: none; }
+
+.subTogglePill {
+  width: 36px;
+  height: 20px;
+  background: var(--card);
+  border-radius: 20px;
+  position: relative;
+  transition: background 0.2s;
+  border: 1px solid var(--borde, rgba(255,255,255,0.1));
+  flex-shrink: 0;
+}
+
+.subTogglePill::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  background: var(--tx2);
+  border-radius: 50%;
+  transition: left 0.2s, background 0.2s;
+}
+
+.subToggleActivo .subTogglePill {
+  background: var(--ac);
+  border-color: var(--ac);
+}
+
+.subToggleActivo .subTogglePill::after {
+  left: 18px;
+  background: #fff;
+}
+
+.subToggleActivo {
+  color: var(--tx);
+}
+
+.subSelect {
+  width: 100%;
+  background: var(--card);
+  border: 1px solid var(--borde, rgba(255,255,255,0.1));
+  border-radius: 8px;
+  padding: 0.55rem 0.75rem;
+  color: var(--tx);
+  font-size: 0.9rem;
+}

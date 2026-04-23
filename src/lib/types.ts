@@ -203,12 +203,14 @@ export interface PagoDeudaInterpersonal {
 
 // ── Consumo de resumen (con soporte compartido) ────────
 export interface ConsumoResumen {
-  descripcion : string;
-  monto       : string;
-  categoria   : string;
-  fecha       : string;
-  compartido  : boolean;
-  division    : 'mitad' | 'prop' | 'personal';
+  descripcion   : string;
+  monto         : string;
+  categoria     : string;
+  fecha         : string;
+  compartido    : boolean;
+  division      : 'mitad' | 'prop' | 'personal';
+  esSuscripcion?: boolean;
+  suscripcionId?: string;
 }
 
 // ── Presupuestos ───────────────────────────────────────
@@ -219,4 +221,36 @@ export interface Presupuesto {
   categoria   : string;
   monto_limite: string;
   activo      : boolean;
+}
+
+// ── Suscripciones ──────────────────────────────────────
+export type DivisionSuscripcion = 'personal' | 'prop' | 'mitad';
+
+export interface Suscripcion {
+  id             : string;
+  created_at     : string;
+  updated_at     : string;
+  user_id        : string;
+  nombre         : string;
+  emoji          : string;
+  descripcion    : string | null;
+  division       : DivisionSuscripcion;
+  monto_estimado : number;
+  activa         : boolean;
+}
+
+export interface SuscripcionPago {
+  id             : string;
+  created_at     : string;
+  suscripcion_id : string;
+  movimiento_id  : string | null;
+  resumen_id     : string | null;
+  periodo        : string;
+  monto          : number;
+}
+
+export interface SuscripcionConHistorial extends Suscripcion {
+  pagos           : SuscripcionPago[];
+  ultimo_monto    : number;
+  pagado_este_mes : boolean;
 }

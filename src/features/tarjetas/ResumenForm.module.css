@@ -213,3 +213,15 @@
   padding        : 8px 10px;
   margin-top     : 4px;
 }
+
+/* Suscripción tag inline */
+.subTag {
+  display: inline-block;
+  margin-left: 0.4rem;
+  font-size: 0.65rem;
+  background: rgba(var(--ac-rgb, 99,102,241), 0.15);
+  color: var(--ac);
+  padding: 0.05rem 0.35rem;
+  border-radius: 4px;
+  vertical-align: middle;
+}

@@ -1,4 +1,3 @@
-
 import type { TabId }           from '../BottomNav/BottomNav.types';
 import styles                   from './DesktopSidebar.module.css';
 
@@ -12,13 +11,14 @@ interface Props {
 }
 
 const TABS: { id: TabId; icono: string; etiqueta: string }[] = [
-  { id: 'registrar',    icono: '✚',  etiqueta: 'Registrar' },
-  { id: 'historial',    icono: '≡',  etiqueta: 'Historial' },
-  { id: 'dashboard',    icono: '⊞',  etiqueta: 'Dashboard' },
-  { id: 'deudas',       icono: '⊟',  etiqueta: 'Deudas' },
-  { id: 'balance',      icono: '⚖',  etiqueta: 'Balance' },
-  { id: 'presupuestos', icono: '📊', etiqueta: 'Límites' },
-  { id: 'config',       icono: '⚙',  etiqueta: 'Config' },
+  { id: 'registrar',     icono: '✚',  etiqueta: 'Registrar'     },
+  { id: 'historial',     icono: '≡',  etiqueta: 'Historial'     },
+  { id: 'dashboard',     icono: '⊞',  etiqueta: 'Dashboard'     },
+  { id: 'deudas',        icono: '⊟',  etiqueta: 'Deudas'        },
+  { id: 'suscripciones', icono: '📦', etiqueta: 'Suscripciones' },
+  { id: 'balance',       icono: '⚖',  etiqueta: 'Balance'       },
+  { id: 'presupuestos',  icono: '📊', etiqueta: 'Límites'       },
+  { id: 'config',        icono: '⚙',  etiqueta: 'Config'        },
 ];
 
 export function DesktopSidebar({ active, onChange, badge, userName, userInitial, onLogout }: Props) {

@@ -12,6 +12,7 @@ import { PagarDeudas }           from '../../../features/deudas/PagarDeudas';
 import { Balance }               from '../../../features/balance/Balance';
 import { Presupuestos }          from '../../../features/presupuestos/Presupuestos';
 import { Config }                from '../../../features/config/Config';
+import { Suscripciones }         from '../../../features/suscripciones/Suscripciones';
 import {
   programarRecordatoriosServicios,
   registrarServiceWorker,
@@ -27,7 +28,6 @@ function ShellInterno({ onLogout }: { onLogout: () => void }) {
   const [badge,         setBadge]         = useState(0);
   const esEscritorio = usarEscritorioOMobile();
 
-  // Registrar SW y programar recordatorios al iniciar
   useEffect(() => {
     if (!cargando) {
       registrarServiceWorker();
@@ -36,13 +36,14 @@ function ShellInterno({ onLogout }: { onLogout: () => void }) {
   }, [cargando, usuario.id]);
 
   const pantallas: Record<TabId, ReactElement> = {
-    registrar   : <Registrar />,
-    historial   : <Historial onBadge={() => {}} />,
-    dashboard   : <Dashboard />,
-    deudas      : <PagarDeudas onBadge={setBadge} />,
-    balance     : <Balance />,
-    presupuestos: <Presupuestos />,
-    config      : <Config onLogout={onLogout} />,
+    registrar     : <Registrar />,
+    historial     : <Historial onBadge={() => {}} />,
+    dashboard     : <Dashboard />,
+    deudas        : <PagarDeudas onBadge={setBadge} />,
+    balance       : <Balance />,
+    presupuestos  : <Presupuestos />,
+    suscripciones : <Suscripciones />,
+    config        : <Config onLogout={onLogout} />,
   };
 
   return (
@@ -62,13 +63,14 @@ function ShellInterno({ onLogout }: { onLogout: () => void }) {
 
       <div className={styles.contenido}>
         <main className={styles.pantalla}>
-          {pestañaActiva === 'registrar'    && pantallas.registrar}
-          {pestañaActiva === 'historial'    && pantallas.historial}
-          {pestañaActiva === 'dashboard'    && pantallas.dashboard}
-          {pestañaActiva === 'deudas'       && pantallas.deudas}
-          {pestañaActiva === 'balance'      && pantallas.balance}
-          {pestañaActiva === 'presupuestos' && pantallas.presupuestos}
-          {pestañaActiva === 'config'       && pantallas.config}
+          {pestañaActiva === 'registrar'     && pantallas.registrar}
+          {pestañaActiva === 'historial'     && pantallas.historial}
+          {pestañaActiva === 'dashboard'     && pantallas.dashboard}
+          {pestañaActiva === 'deudas'        && pantallas.deudas}
+          {pestañaActiva === 'balance'       && pantallas.balance}
+          {pestañaActiva === 'presupuestos'  && pantallas.presupuestos}
+          {pestañaActiva === 'suscripciones' && pantallas.suscripciones}
+          {pestañaActiva === 'config'        && pantallas.config}
         </main>
 
         {!esEscritorio && (
