@@ -3,12 +3,12 @@ import { useState, useEffect } from 'react';
 import { Input, Select, Button, Card, Badge } from '../../components/ui';
 import { sbGet, sbPost, sbPatch } from '../../lib/supabase';
 import { crearDeudaInterpersonal } from '../../lib/deudas.service';
-import { getSuscripciones, registrarPagoSuscripcion, crearSuscripcion } from '../../lib/suscripciones.service';
+import { getSuscripciones, registrarPagoSuscripcion, crearSuscripcion } from '../../lib/gastos_recurrentes.service';
 import { fmt, FISO, partePorDiv } from '../../lib/utils';
 import { CATEGORIAS } from '../../lib/types';
-import type { ResumenTarjeta, ConsumoResumen, SuscripcionConHistorial } from '../../lib/types';
+import type { ResumenTarjeta, ConsumoResumen, GastoRecurrenteConHistorial } from '../../lib/types';
 import styles from './ResumenForm.module.css';
-import subStyles from '../suscripciones/Suscripciones.module.css';
+import subStyles from '../gastos_recurrentes/GastosRecurrentes.module.css';
 
 interface Props { onDone: () => void; }
 
@@ -42,7 +42,7 @@ export function ResumenForm({ onDone }: Props) {
   const [cSubNuevo, setCSubNuevo] = useState('');   // nombre si es nueva
 
   // Suscripciones cargadas
-  const [suscripciones, setSuscripciones] = useState<SuscripcionConHistorial[]>([]);
+  const [suscripciones, setSuscripciones] = useState<GastoRecurrenteConHistorial[]>([]);
 
   const [montoArrastrado, setMontoArrastrado] = useState(0);
   const [loading,  setLoading]  = useState(false);
@@ -201,7 +201,7 @@ export function ResumenForm({ onDone }: Props) {
 
           if (subId) {
             await registrarPagoSuscripcion({
-              suscripcion_id: subId,
+              gasto_recurrente_id: subId,
               movimiento_id : mov.id,
               resumen_id    : resumen.id,
               periodo,
@@ -211,8 +211,8 @@ export function ResumenForm({ onDone }: Props) {
             // Actualizar monto_estimado de la suscripción con el valor real
             const sub = suscripciones.find(s => s.id === subId);
             if (sub && sub.monto_estimado !== montoC) {
-              const { actualizarSuscripcion } = await import('../../lib/suscripciones.service');
-              await actualizarSuscripcion(subId, { monto_estimado: montoC });
+              const { actualizarGastoRecurrente } = await import('../../lib/gastos_recurrentes.service');
+              await actualizarGastoRecurrente(subId, { monto_estimado: montoC });
             }
           }
         }

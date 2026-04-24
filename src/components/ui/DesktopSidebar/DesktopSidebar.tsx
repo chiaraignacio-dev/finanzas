@@ -15,7 +15,7 @@ const TABS: { id: TabId; icono: string; etiqueta: string }[] = [
   { id: 'historial',     icono: '≡',  etiqueta: 'Historial'     },
   { id: 'dashboard',     icono: '⊞',  etiqueta: 'Dashboard'     },
   { id: 'deudas',        icono: '⊟',  etiqueta: 'Deudas'        },
-  { id: 'suscripciones', icono: '📦', etiqueta: 'Suscripciones' },
+  { id: 'gastos_recurrentes', icono: '🔄', etiqueta: 'Recurrentes' },
   { id: 'balance',       icono: '⚖',  etiqueta: 'Balance'       },
   { id: 'presupuestos',  icono: '📊', etiqueta: 'Límites'       },
   { id: 'config',        icono: '⚙',  etiqueta: 'Config'        },

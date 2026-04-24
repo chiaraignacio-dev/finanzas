@@ -12,7 +12,8 @@ import { PagarDeudas }           from '../../../features/deudas/PagarDeudas';
 import { Balance }               from '../../../features/balance/Balance';
 import { Presupuestos }          from '../../../features/presupuestos/Presupuestos';
 import { Config }                from '../../../features/config/Config';
-import { Suscripciones }         from '../../../features/suscripciones/Suscripciones';
+import { GastosRecurrentes }     from '../../../features/gastos_recurrentes/GastosRecurrentes';
+import { CierreMes }             from '../../../features/cierre_mes/CierreMes';
 import {
   programarRecordatoriosServicios,
   registrarServiceWorker,
@@ -36,19 +37,20 @@ function ShellInterno({ onLogout }: { onLogout: () => void }) {
   }, [cargando, usuario.id]);
 
   const pantallas: Record<TabId, ReactElement> = {
-    registrar     : <Registrar />,
-    historial     : <Historial onBadge={() => {}} />,
-    dashboard     : <Dashboard />,
-    deudas        : <PagarDeudas onBadge={setBadge} />,
-    balance       : <Balance />,
-    presupuestos  : <Presupuestos />,
-    suscripciones : <Suscripciones />,
-    config        : <Config onLogout={onLogout} />,
+    registrar         : <Registrar />,
+    historial         : <Historial onBadge={() => {}} />,
+    dashboard         : <Dashboard />,
+    deudas            : <PagarDeudas onBadge={setBadge} />,
+    balance           : <Balance />,
+    presupuestos      : <Presupuestos />,
+    gastos_recurrentes: <GastosRecurrentes />,
+    config            : <Config onLogout={onLogout} />,
   };
 
   return (
     <div className={esEscritorio ? styles.rootEscritorio : styles.rootMobile}>
       <Toast message={mensaje} type={tipo} visible={visible} />
+      <CierreMes />
 
       {esEscritorio && (
         <DesktopSidebar
@@ -63,14 +65,14 @@ function ShellInterno({ onLogout }: { onLogout: () => void }) {
 
       <div className={styles.contenido}>
         <main className={styles.pantalla}>
-          {pestañaActiva === 'registrar'     && pantallas.registrar}
-          {pestañaActiva === 'historial'     && pantallas.historial}
-          {pestañaActiva === 'dashboard'     && pantallas.dashboard}
-          {pestañaActiva === 'deudas'        && pantallas.deudas}
-          {pestañaActiva === 'balance'       && pantallas.balance}
-          {pestañaActiva === 'presupuestos'  && pantallas.presupuestos}
-          {pestañaActiva === 'suscripciones' && pantallas.suscripciones}
-          {pestañaActiva === 'config'        && pantallas.config}
+          {pestañaActiva === 'registrar'          && pantallas.registrar}
+          {pestañaActiva === 'historial'           && pantallas.historial}
+          {pestañaActiva === 'dashboard'           && pantallas.dashboard}
+          {pestañaActiva === 'deudas'              && pantallas.deudas}
+          {pestañaActiva === 'balance'             && pantallas.balance}
+          {pestañaActiva === 'presupuestos'        && pantallas.presupuestos}
+          {pestañaActiva === 'gastos_recurrentes'  && pantallas.gastos_recurrentes}
+          {pestañaActiva === 'config'              && pantallas.config}
         </main>
 
         {!esEscritorio && (

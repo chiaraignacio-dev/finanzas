@@ -5,7 +5,7 @@ export type TabId =
   | 'deudas'
   | 'balance'
   | 'presupuestos'
-  | 'suscripciones'
+  | 'gastos_recurrentes'
   | 'config';
 
 export interface BottomNavProps {

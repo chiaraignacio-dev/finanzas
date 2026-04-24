@@ -495,3 +495,50 @@
   color: var(--tx);
   font-size: 0.9rem;
 }
+
+/* ── Tipo badge en card ──────────────────────────────── */
+.cardTipo {
+  font-size    : 0.68rem;
+  color        : var(--tx2);
+  background   : var(--bg);
+  padding      : 0.1rem 0.4rem;
+  border-radius: 4px;
+}
+
+/* ── Grupos por tipo ─────────────────────────────────── */
+.grupo       { margin-bottom: 0.5rem; }
+
+.grupoHeader {
+  display    : flex;
+  align-items: center;
+  gap        : 0.4rem;
+  padding    : 0.5rem 16px 0.3rem;
+}
+
+.grupoLabel {
+  font-size     : 0.75rem;
+  font-weight   : 600;
+  color         : var(--tx2);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  flex          : 1;
+}
+
+.grupoCant {
+  font-size    : 0.7rem;
+  color        : var(--tx3);
+  background   : var(--sf2);
+  padding      : 0.1rem 0.4rem;
+  border-radius: 20px;
+}
+
+.btnNuevo {
+  background   : var(--ac);
+  color        : #fff;
+  border       : none;
+  padding      : 0.4rem 0.9rem;
+  border-radius: 8px;
+  font-size    : 0.85rem;
+  font-weight  : 600;
+  cursor       : pointer;
+}
