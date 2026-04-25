@@ -1,4 +1,4 @@
-import type { GastoRecurrenteConHistorial } from '../../lib/types';
+import type { GastoRecurrenteConHistorial, GastoRecurrentePago } from '../../lib/types';
 import { fmt }                               from '../../lib/utils';
 import styles                                from './GastosRecurrentes.module.css';
 
@@ -15,7 +15,7 @@ export function GraficoGastosRecurrentes({ gastos }: Props) {
 
   const totales = meses.map(mes =>
     gastos.reduce((acc, g) => {
-      const pago = g.pagos.find(p => p.periodo === mes);
+      const pago = g.pagos.find((p: GastoRecurrentePago) => p.periodo === mes);
       return acc + (pago?.monto ?? 0);
     }, 0)
   );
@@ -54,7 +54,7 @@ export function GraficoGastosRecurrentes({ gastos }: Props) {
       <div className={styles.desglose}>
         {gastos.map(g => {
           const mesActual = meses[5];
-          const pago  = g.pagos.find(p => p.periodo === mesActual);
+          const pago  = g.pagos.find((p: GastoRecurrentePago) => p.periodo === mesActual);
           const monto = pago?.monto ?? g.ultimo_monto;
           const pct   = Math.round((monto / Math.max(totales[5], 1)) * 100);
           return (

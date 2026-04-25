@@ -102,9 +102,10 @@ export function GastosRecurrentes() {
           </button>
         </div>
       ) : (
-        /* Secciones agrupadas por tipo */
         Object.entries(grupos).map(([tipo, items]) => {
-          const tipoInfo = TIPOS_GASTO_RECURRENTE.find(t => t.value === tipo);
+          const tipoInfo = TIPOS_GASTO_RECURRENTE.find(
+            (t: { value: TipoGastoRecurrente; label: string; emoji: string }) => t.value === tipo
+          );
           return (
             <div key={tipo} className={styles.grupo}>
               <div className={styles.grupoHeader}>
@@ -115,9 +116,9 @@ export function GastosRecurrentes() {
               <div className={styles.lista}>
                 {items!.map(g => (
                   <GastoRecurrenteCard
-                    key       ={g.id}
-                    gasto     ={g}
-                    onEditar  ={() => { setEdit(g); setForm(true); }}
+                    key        ={g.id}
+                    gasto      ={g}
+                    onEditar   ={() => { setEdit(g); setForm(true); }}
                     onDarDeBaja={() => darDeBaja(g.id)}
                   />
                 ))}
@@ -129,9 +130,9 @@ export function GastosRecurrentes() {
 
       {mostrarForm && (
         <GastoRecurrenteForm
-          inicial  ={editando ?? undefined}
+          inicial   ={editando ?? undefined}
           onGuardado={onGuardado}
-          onCerrar ={cerrar}
+          onCerrar  ={cerrar}
         />
       )}
     </div>

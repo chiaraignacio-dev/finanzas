@@ -28,7 +28,7 @@ const DIV_OPTIONS = [
   { value: 'prop',     label: 'Proporcional'},
 ];
 
-const TIPO_OPTIONS = TIPOS_GASTO_RECURRENTE.map(t => ({
+const TIPO_OPTIONS = TIPOS_GASTO_RECURRENTE.map((t: { value: TipoGastoRecurrente; label: string; emoji: string }) => ({
   value: t.value,
   label: `${t.emoji} ${t.label}`,
 }));

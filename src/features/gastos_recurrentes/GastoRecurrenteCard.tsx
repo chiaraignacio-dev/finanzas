@@ -1,5 +1,5 @@
 import { TIPOS_GASTO_RECURRENTE }    from '../../lib/types';
-import type { GastoRecurrenteConHistorial } from '../../lib/types';
+import type { GastoRecurrenteConHistorial, GastoRecurrentePago } from '../../lib/types';
 import { fmt }                       from '../../lib/utils';
 import styles                        from './GastosRecurrentes.module.css';
 
@@ -42,7 +42,7 @@ export function GastoRecurrenteCard({ gasto: g, onEditar, onDarDeBaja }: Props) 
           </span>
           {ultimos.length > 0 && (
             <div className={styles.miniHistorial}>
-              {ultimos.map(p => (
+              {ultimos.map((p: GastoRecurrentePago) => (
                 <span key={p.id} className={styles.miniPago} title={`${p.periodo}: ${fmt(p.monto)}`}>
                   {fmt(p.monto)}
                 </span>
@@ -53,8 +53,8 @@ export function GastoRecurrenteCard({ gasto: g, onEditar, onDarDeBaja }: Props) 
       </div>
 
       <div className={styles.cardAcciones}>
-        <button className={styles.btnAccion} onClick={onEditar}     title="Editar">✏️</button>
-        <button className={styles.btnAccion} onClick={onDarDeBaja}  title="Dar de baja">🗑</button>
+        <button className={styles.btnAccion} onClick={onEditar}    title="Editar">✏️</button>
+        <button className={styles.btnAccion} onClick={onDarDeBaja} title="Dar de baja">🗑</button>
       </div>
     </div>
   );

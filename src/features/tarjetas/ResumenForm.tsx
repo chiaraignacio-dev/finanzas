@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { Input, Select, Button, Card, Badge } from '../../components/ui';
 import { sbGet, sbPost, sbPatch } from '../../lib/supabase';
 import { crearDeudaInterpersonal } from '../../lib/deudas.service';
-import { getSuscripciones, registrarPagoSuscripcion, crearSuscripcion } from '../../lib/gastos_recurrentes.service';
+import { getGastosRecurrentes, registrarPagoGastoRecurrente, crearGastoRecurrente } from '../../lib/gastos_recurrentes.service';
 import { fmt, FISO, partePorDiv } from '../../lib/utils';
 import { CATEGORIAS } from '../../lib/types';
 import type { ResumenTarjeta, ConsumoResumen, GastoRecurrenteConHistorial } from '../../lib/types';
@@ -36,34 +36,32 @@ export function ResumenForm({ onDone }: Props) {
   const [cComp,  setCComp]  = useState(false);
   const [cDiv,   setCDiv]   = useState<'mitad' | 'prop' | 'personal'>('mitad');
 
-  // Toggle suscripción (para el consumo que se está por agregar)
+  // Toggle gasto recurrente
   const [cEsSub,    setCEsSub]    = useState(false);
   const [cSubId,    setCSubId]    = useState('');
-  const [cSubNuevo, setCSubNuevo] = useState('');   // nombre si es nueva
+  const [cSubNuevo, setCSubNuevo] = useState('');
 
-  // Suscripciones cargadas
-  const [suscripciones, setSuscripciones] = useState<GastoRecurrenteConHistorial[]>([]);
+  // Gastos recurrentes cargados
+  const [gastosRecurrentes, setGastosRecurrentes] = useState<GastoRecurrenteConHistorial[]>([]);
 
   const [montoArrastrado, setMontoArrastrado] = useState(0);
   const [loading,  setLoading]  = useState(false);
   const [error,    setError]    = useState('');
 
-  const pareja = Object.values(allUsers).find((u: any) => u.id !== user.id);
+  const pareja = Object.values(allUsers).find((u: import('../../lib/types').Usuario) => u.id !== user.id);
 
   const medioOptions = medios
     .filter(m => m.tipo === 'credito')
     .map(m => ({ value: m.nombre, label: m.nombre }));
 
-  // Cargar suscripciones al montar
+  // Cargar gastos recurrentes al montar
   useEffect(() => {
-    getSuscripciones(user.id).then(setSuscripciones).catch(() => {});
+    getGastosRecurrentes(user.id).then(setGastosRecurrentes).catch(() => {});
   }, [user.id]);
 
   // Auto-activar toggle si la categoría es Suscripciones
   useEffect(() => {
-    if (cCat === 'Suscripciones') {
-      setCEsSub(true);
-    }
+    if (cCat === 'Suscripciones') setCEsSub(true);
   }, [cCat]);
 
   // Cálculos
@@ -72,7 +70,7 @@ export function ResumenForm({ onDone }: Props) {
   const totalResumen    = sumaConsumos + extrasNum;
   const compartidos     = consumos.filter(c => c.compartido);
   const montoCompartido = compartidos.reduce((a, c) => {
-    const m    = parseFloat(c.monto) || 0;
+    const m     = parseFloat(c.monto) || 0;
     const parte = Math.round(partePorDiv(m, c.division, prop));
     return a + (m - parte);
   }, 0);
@@ -86,14 +84,14 @@ export function ResumenForm({ onDone }: Props) {
   function addConsumo() {
     if (!cDesc || !cMonto) return;
     setConsumos(prev => [...prev, {
-      descripcion  : cDesc,
-      monto        : cMonto,
-      categoria    : cCat,
-      fecha        : cFecha,
-      compartido   : cComp,
-      division     : cComp ? cDiv : 'personal',
-      esSuscripcion: cEsSub,
-      suscripcionId: cEsSub ? (cSubId || undefined) : undefined,
+      descripcion   : cDesc,
+      monto         : cMonto,
+      categoria     : cCat,
+      fecha         : cFecha,
+      compartido    : cComp,
+      division      : cComp ? cDiv : 'personal',
+      esSuscripcion : cEsSub,
+      suscripcionId : cEsSub ? (cSubId || undefined) : undefined,
     }]);
     resetConsumoForm();
   }
@@ -154,9 +152,9 @@ export function ResumenForm({ onDone }: Props) {
 
       // 3. Guardar cada consumo como movimiento
       for (const c of consumos) {
-        const montoC   = parseFloat(c.monto) || 0;
-        const miParte  = Math.round(partePorDiv(montoC, c.division, prop));
-        const parteOtro= Math.round(montoC - miParte);
+        const montoC    = parseFloat(c.monto) || 0;
+        const miParte   = Math.round(partePorDiv(montoC, c.division, prop));
+        const parteOtro = Math.round(montoC - miParte);
 
         const mov = await sbPost<{ id: string }>('movimientos', {
           fecha            : c.fecha,
@@ -181,36 +179,37 @@ export function ResumenForm({ onDone }: Props) {
           resumen_id       : resumen.id,
         });
 
-        // 4. Si está marcado como suscripción → registrar pago
+        // 4. Si está marcado como gasto recurrente → registrar pago
         if (c.esSuscripcion) {
           let subId = c.suscripcionId;
 
-          // Si eligió "nueva", crear la suscripción primero
+          // Si eligió "nueva", crear el gasto recurrente primero
           if (!subId && cSubNuevo.trim()) {
-            const nueva = await crearSuscripcion({
+            const nuevo = await crearGastoRecurrente({
               user_id        : user.id,
               nombre         : cSubNuevo.trim(),
               emoji          : '📦',
+              tipo           : 'suscripcion_digital',
               descripcion    : null,
               division       : c.division as 'personal' | 'prop' | 'mitad',
               monto_estimado : montoC,
               activa         : true,
             });
-            subId = nueva.id;
+            subId = nuevo.id;
           }
 
           if (subId) {
-            await registrarPagoSuscripcion({
+            await registrarPagoGastoRecurrente({
               gasto_recurrente_id: subId,
-              movimiento_id : mov.id,
-              resumen_id    : resumen.id,
+              movimiento_id      : mov.id,
+              resumen_id         : resumen.id,
               periodo,
-              monto         : montoC,
+              monto              : montoC,
             });
 
-            // Actualizar monto_estimado de la suscripción con el valor real
-            const sub = suscripciones.find(s => s.id === subId);
-            if (sub && sub.monto_estimado !== montoC) {
+            // Actualizar monto_estimado con el valor real
+            const gr = gastosRecurrentes.find(s => s.id === subId);
+            if (gr && gr.monto_estimado !== montoC) {
               const { actualizarGastoRecurrente } = await import('../../lib/gastos_recurrentes.service');
               await actualizarGastoRecurrente(subId, { monto_estimado: montoC });
             }
@@ -245,9 +244,9 @@ export function ResumenForm({ onDone }: Props) {
   }
 
   const subOptions = [
-    { value: '',        label: '— Seleccionar suscripción —' },
-    ...suscripciones.map(s => ({ value: s.id, label: `${s.emoji} ${s.nombre}` })),
-    { value: '__nueva__', label: '+ Crear nueva suscripción' },
+    { value: '',          label: '— Seleccionar gasto recurrente —' },
+    ...gastosRecurrentes.map(s => ({ value: s.id, label: `${s.emoji} ${s.nombre}` })),
+    { value: '__nueva__', label: '+ Crear nuevo' },
   ];
 
   return (
@@ -304,7 +303,7 @@ export function ResumenForm({ onDone }: Props) {
             </div>
           )}
 
-          {/* ── Toggle suscripción recurrente ── */}
+          {/* ── Toggle gasto recurrente ── */}
           <div className={subStyles.subToggleRow}>
             <label className={`${subStyles.subToggle} ${cEsSub ? subStyles.subToggleActivo : ''}`}>
               <input
@@ -313,7 +312,7 @@ export function ResumenForm({ onDone }: Props) {
                 onChange={e => { setCEsSub(e.target.checked); if (!e.target.checked) { setCSubId(''); setCSubNuevo(''); } }}
               />
               <span className={subStyles.subTogglePill} />
-              <span>Es suscripción recurrente</span>
+              <span>Es gasto recurrente</span>
             </label>
 
             {cEsSub && (
@@ -330,8 +329,8 @@ export function ResumenForm({ onDone }: Props) {
 
                 {cSubId === '__nueva__' && (
                   <Input
-                    label="Nombre de la nueva suscripción"
-                    placeholder="Netflix, Spotify..."
+                    label="Nombre del nuevo gasto recurrente"
+                    placeholder="Netflix, Alquiler..."
                     value={cSubNuevo}
                     onChange={e => setCSubNuevo(e.target.value)}
                     fullWidth
@@ -359,7 +358,7 @@ export function ResumenForm({ onDone }: Props) {
                     <div className={styles.consumoInfo}>
                       <div className={styles.consumoDesc}>
                         {c.descripcion}
-                        {c.esSuscripcion && <span className={styles.subTag}>📦 sub</span>}
+                        {c.esSuscripcion && <span className={styles.subTag}>🔄 recurrente</span>}
                       </div>
                       <div className={styles.consumoMeta}>
                         {c.fecha} · {c.categoria}
@@ -384,7 +383,7 @@ export function ResumenForm({ onDone }: Props) {
                         {c.compartido && (
                           <select
                             className={styles.divSelect}
-                            value  ={c.division}
+                            value   ={c.division}
                             onChange={e => setDivision(i, e.target.value as 'mitad' | 'prop' | 'personal')}
                           >
                             <option value="mitad">50/50</option>
@@ -402,7 +401,7 @@ export function ResumenForm({ onDone }: Props) {
         )}
       </Card>
 
-      {/* Extras / ajuste manual */}
+      {/* Extras */}
       <Card className={styles.section}>
         <div className={styles.sectionTitle}>Impuestos y otros</div>
         <div className={styles.hint}>Intereses, impuestos, arrastre manual u otros cargos no desglosables.</div>

@@ -203,12 +203,14 @@ export interface PagoDeudaInterpersonal {
 
 // ── Consumo de resumen (con soporte compartido) ────────
 export interface ConsumoResumen {
-  descripcion : string;
-  monto       : string;
-  categoria   : string;
-  fecha       : string;
-  compartido  : boolean;
-  division    : 'mitad' | 'prop' | 'personal';
+  descripcion   : string;
+  monto         : string;
+  categoria     : string;
+  fecha         : string;
+  compartido    : boolean;
+  division      : 'mitad' | 'prop' | 'personal';
+  esSuscripcion?: boolean;
+  suscripcionId?: string;
 }
 
 // ── Presupuestos ───────────────────────────────────────
@@ -219,4 +221,60 @@ export interface Presupuesto {
   categoria   : string;
   monto_limite: string;
   activo      : boolean;
+}
+
+// ── Gastos Recurrentes ─────────────────────────────────
+export type DivisionGastoRecurrente = 'personal' | 'prop' | 'mitad';
+
+export type TipoGastoRecurrente =
+  | 'suscripcion_digital'
+  | 'alquiler'
+  | 'gimnasio'
+  | 'expensas'
+  | 'seguro'
+  | 'cuota'
+  | 'otro';
+
+export const TIPOS_GASTO_RECURRENTE: {
+  value: TipoGastoRecurrente;
+  label: string;
+  emoji: string;
+}[] = [
+  { value: 'suscripcion_digital', label: 'Suscripción digital',  emoji: '📱' },
+  { value: 'alquiler',            label: 'Alquiler',             emoji: '🏠' },
+  { value: 'gimnasio',            label: 'Gimnasio',             emoji: '🏋️' },
+  { value: 'expensas',            label: 'Expensas',             emoji: '🏢' },
+  { value: 'seguro',              label: 'Seguro',               emoji: '🛡️' },
+  { value: 'cuota',               label: 'Cuota / financiación', emoji: '💳' },
+  { value: 'otro',                label: 'Otro',                 emoji: '📦' },
+];
+
+export interface GastoRecurrente {
+  id             : string;
+  created_at     : string;
+  updated_at     : string;
+  user_id        : string;
+  nombre         : string;
+  emoji          : string;
+  descripcion    : string | null;
+  tipo           : TipoGastoRecurrente;
+  division       : DivisionGastoRecurrente;
+  monto_estimado : number;
+  activa         : boolean;
+}
+
+export interface GastoRecurrentePago {
+  id                  : string;
+  created_at          : string;
+  gasto_recurrente_id : string;
+  movimiento_id       : string | null;
+  resumen_id          : string | null;
+  periodo             : string;
+  monto               : number;
+}
+
+export interface GastoRecurrenteConHistorial extends GastoRecurrente {
+  pagos           : GastoRecurrentePago[];
+  ultimo_monto    : number;
+  pagado_este_mes : boolean;
 }
