@@ -18,8 +18,8 @@ const ICONS_SRV: Record<string, string> = {
 };
 
 export function Historial({ onBadge }: Props) {
-  const sesion = usarSesion();
-  const user = sesion.usuario;
+  const sesion   = usarSesion();
+  const user     = sesion.usuario;
   const allUsers = sesion.todosUsuarios;
   const { mostrar: onToast } = usarToast();
   const [mode,      setMode]      = useState<'yo' | 'hogar'>('yo');
@@ -50,14 +50,16 @@ export function Historial({ onBadge }: Props) {
       setServicios(srv);
       onBadge(pend.length + srv.length);
 
-      // Movimientos según modo
+      // Movimientos según modo — incluimos comprometidos para mostrarlos en historial
       let all: Movimiento[];
       if (mode === 'yo') {
         const [mios, comp] = await Promise.all([
-          sbGet<Movimiento>('movimientos', { user_id: `eq.${user.id}`, estado: 'eq.confirmado' }),
+          sbGet<Movimiento>('movimientos', { user_id: `eq.${user.id}`, estado: 'neq.rechazado' }),
           sbGet<Movimiento>('movimientos', { es_compartido: 'eq.true', estado: 'eq.confirmado', user_id: `neq.${user.id}` }),
         ]);
-        all = [...mios, ...comp].sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime()).slice(0, 40);
+        // Excluimos rechazados; incluimos confirmados y comprometidos del usuario
+        const miosFiltrados = mios.filter(m => m.estado !== 'rechazado');
+        all = [...miosFiltrados, ...comp].sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime()).slice(0, 40);
       } else {
         const rows = await sbGet<Movimiento>('movimientos', { es_compartido: 'eq.true', estado: 'eq.confirmado' });
         const seen = new Set<string>();
@@ -165,21 +167,23 @@ export function Historial({ onBadge }: Props) {
         {loading && <div className={styles.loading}><div className={styles.spin} /></div>}
         {!loading && movs.length === 0 && <div className={styles.empty}>Sin movimientos aún</div>}
         {!loading && movs.map(r => {
-          const isMine = r.user_id === user.id;
-          const mShow  = r.es_compartido && !isMine ? parseFloat(r.parte_contraparte || r.mi_parte) : parseFloat(r.mi_parte);
-          const esPos  = r.tipo === 'ingreso';
-          const esNeu  = r.tipo === 'ahorro';
-          const color  = esPos ? 'var(--gn)' : esNeu ? 'var(--am)' : 'var(--rd)';
-          const signo  = esPos ? '+' : '-';
-          const quien  = !isMine ? ` · de ${Object.values(allUsers).find((u: any) => u.id === r.user_id)?.nombre || 'Otro'}` : '';
+          const isMine    = r.user_id === user.id;
+          const mShow     = r.es_compartido && !isMine ? parseFloat(r.parte_contraparte || r.mi_parte) : parseFloat(r.mi_parte);
+          const esPos     = r.tipo === 'ingreso';
+          const esNeu     = r.tipo === 'ahorro';
+          const esCompr   = r.estado === 'comprometido';
+          const color     = esCompr ? 'var(--tx3)' : esPos ? 'var(--gn)' : esNeu ? 'var(--am)' : 'var(--rd)';
+          const signo     = esPos ? '+' : '-';
+          const quien     = !isMine ? ` · de ${Object.values(allUsers).find((u: any) => u.id === r.user_id)?.nombre || 'Otro'}` : '';
 
           return (
-            <div key={r.id} className={styles.movItem}>
+            <div key={r.id} className={styles.movItem} style={{ opacity: esCompr ? 0.7 : 1 }}>
               <div className={styles.movIcon}>{ICONS[r.tipo] || '•'}</div>
               <div className={styles.movInfo}>
                 <div className={styles.movDesc}>
                   {r.descripcion}
                   {r.es_compartido && <Badge variant="info" style={{ marginLeft: 4 }}>compartido</Badge>}
+                  {esCompr && <Badge variant="default" style={{ marginLeft: 4 }}>Pendiente de resumen</Badge>}
                 </div>
                 <div className={styles.movMeta}>{r.fecha} · {r.categoria || r.tipo}{quien}</div>
               </div>

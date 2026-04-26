@@ -39,13 +39,13 @@ export function GastoForm({ onExito }: Props) {
   const [cargando,   setCargando]   = useState(false);
   const [error,      setError]      = useState('');
 
-  const medio     = medios.find(m => m.id === medioId);
-  const esCred    = medio?.tipo === 'credito';
-  const esComp = ['prop', 'mitad'].includes(division);
-  const montoNum  = num(monto);
+  const medio      = medios.find(m => m.id === medioId);
+  const esCred     = medio?.tipo === 'credito';
+  const esComp     = ['prop', 'mitad'].includes(division);
+  const montoNum   = num(monto);
   const esDePareja = division === 'novia';
-  const miParte = esDePareja ? 0 : Math.round(partePorDiv(montoNum, division, proporcion));
-  const parteOtro = Math.round(montoNum - miParte);
+  const miParte    = esDePareja ? 0 : Math.round(partePorDiv(montoNum, division, proporcion));
+  const parteOtro  = Math.round(montoNum - miParte);
 
   const opsCat    = CATEGORIAS.map(c => ({ value: c, label: c }));
   const opsMedios = medios.map(m => ({ value: m.id, label: m.nombre }));
@@ -56,6 +56,11 @@ export function GastoForm({ onExito }: Props) {
     }
     setError(''); setCargando(true);
     try {
+      // Si el medio es tarjeta de crédito, el gasto queda comprometido
+      // (no impacta en disponible ni genera deuda hasta cargar el resumen)
+      const esCredito = medio?.tipo === 'credito';
+      const estado    = esCredito ? 'comprometido' : 'confirmado';
+
       const mov = await sbPost<{ id: string }>('movimientos', {
         fecha,
         tipo             : 'gasto',
@@ -73,10 +78,12 @@ export function GastoForm({ onExito }: Props) {
         notas            : notas || null,
         user_id          : usuario.id,
         es_compartido    : esComp,
-        estado           : 'confirmado',
+        estado,
       });
 
-      if (parteOtro > 0 && pareja) {
+      // Solo generar deuda interpersonal si NO es crédito
+      // Para crédito, la deuda se genera al asociar el movimiento al resumen
+      if (!esCredito && parteOtro > 0 && pareja) {
         await crearDeudaInterpersonal({
           acreedorId  : usuario.id,
           deudorId    : pareja.id,
@@ -88,9 +95,12 @@ export function GastoForm({ onExito }: Props) {
         });
       }
 
-      const msg = parteOtro > 0 && pareja
-        ? `Gasto guardado ✓ — ${pareja.nombre} te debe ${fmt(parteOtro)}`
-        : 'Gasto guardado ✓';
+      const msg = esCredito
+        ? 'Gasto en tarjeta guardado ✓ — se sumará al disponible cuando cargues el resumen'
+        : parteOtro > 0 && pareja
+          ? `Gasto guardado ✓ — ${pareja.nombre} te debe ${fmt(parteOtro)}`
+          : 'Gasto guardado ✓';
+
       onExito(msg);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Error al guardar');
@@ -122,7 +132,14 @@ export function GastoForm({ onExito }: Props) {
       {montoNum > 0 && (
         <div className={styles.pill}><span>Mi parte</span><strong>{fmt(miParte)}</strong></div>
       )}
-      {esComp && parteOtro > 0 && division !== 'novia' && pareja && (
+
+      {esCred && (
+        <div className={styles.alertInfo}>
+          💳 Este gasto quedará pendiente hasta que cargues el resumen de la tarjeta. No impacta en tu disponible ni genera deuda hasta ese momento.
+        </div>
+      )}
+
+      {!esCred && esComp && parteOtro > 0 && division !== 'novia' && pareja && (
         <div className={styles.alert}>
           ⚡ Se generará una deuda de <strong>{fmt(parteOtro)}</strong> de {pareja.nombre} hacia vos.
         </div>

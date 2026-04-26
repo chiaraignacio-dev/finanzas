@@ -4,9 +4,9 @@ import { Input, Select, Button, Card, Badge } from '../../components/ui';
 import { sbGet, sbPost, sbPatch } from '../../lib/supabase';
 import { crearDeudaInterpersonal } from '../../lib/deudas.service';
 import { getGastosRecurrentes, registrarPagoGastoRecurrente, crearGastoRecurrente } from '../../lib/gastos_recurrentes.service';
-import { fmt, FISO, partePorDiv } from '../../lib/utils';
+import { fmt, FISO, partePorDiv, num } from '../../lib/utils';
 import { CATEGORIAS } from '../../lib/types';
-import type { ResumenTarjeta, ConsumoResumen, GastoRecurrenteConHistorial } from '../../lib/types';
+import type { ResumenTarjeta, ConsumoResumen, GastoRecurrenteConHistorial, Movimiento } from '../../lib/types';
 import styles from './ResumenForm.module.css';
 import subStyles from '../gastos_recurrentes/GastosRecurrentes.module.css';
 
@@ -21,6 +21,7 @@ export function ResumenForm({ onDone }: Props) {
   const allUsers: Record<string, import('../../lib/types').Usuario> = sesion.todosUsuarios;
   const prop = sesion.proporcion;
   const { mostrar: onToast } = usarToast();
+
   const [tarjeta,    setTarjeta]    = useState('');
   const [periodo,    setPeriodo]    = useState('');
   const [vcto,       setVcto]       = useState('');
@@ -28,7 +29,11 @@ export function ResumenForm({ onDone }: Props) {
   const [extrasMonto,setExtrasMonto]= useState('');
   const [consumos,   setConsumos]   = useState<ConsumoResumen[]>([]);
 
-  // Form de nuevo consumo
+  // Gastos comprometidos de esta tarjeta (cargados durante el mes)
+  const [gastosComprometidos,    setGastosComprometidos]    = useState<Movimiento[]>([]);
+  const [seleccionComprometidos, setSeleccionComprometidos] = useState<Set<string>>(new Set());
+
+  // Form de nuevo consumo manual
   const [cDesc,  setCDesc]  = useState('');
   const [cMonto, setCMonto] = useState('');
   const [cCat,   setCCat]   = useState('Otro');
@@ -41,9 +46,7 @@ export function ResumenForm({ onDone }: Props) {
   const [cSubId,    setCSubId]    = useState('');
   const [cSubNuevo, setCSubNuevo] = useState('');
 
-  // Gastos recurrentes cargados
   const [gastosRecurrentes, setGastosRecurrentes] = useState<GastoRecurrenteConHistorial[]>([]);
-
   const [montoArrastrado, setMontoArrastrado] = useState(0);
   const [loading,  setLoading]  = useState(false);
   const [error,    setError]    = useState('');
@@ -59,21 +62,59 @@ export function ResumenForm({ onDone }: Props) {
     getGastosRecurrentes(user.id).then(setGastosRecurrentes).catch(() => {});
   }, [user.id]);
 
+  // Cargar gastos comprometidos cuando cambia la tarjeta seleccionada
+  useEffect(() => {
+    if (!tarjeta) {
+      setGastosComprometidos([]);
+      setSeleccionComprometidos(new Set());
+      return;
+    }
+    sbGet<Movimiento>('movimientos', {
+      user_id   : `eq.${user.id}`,
+      estado    : 'eq.comprometido',
+      medio_pago: `eq.${tarjeta}`,
+    }, 0).then(rows => {
+      setGastosComprometidos(rows);
+      // Seleccionar todos por defecto
+      setSeleccionComprometidos(new Set(rows.map(r => r.id)));
+    }).catch(() => {});
+  }, [tarjeta, user.id]);
+
   // Auto-activar toggle si la categoría es Suscripciones
   useEffect(() => {
     if (cCat === 'Suscripciones') setCEsSub(true);
   }, [cCat]);
 
+  function toggleSeleccionComprometido(id: string) {
+    setSeleccionComprometidos(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
   // Cálculos
-  const sumaConsumos    = consumos.reduce((a, c) => a + (parseFloat(c.monto) || 0), 0);
+  const montoComprometidoSeleccionado = gastosComprometidos
+    .filter(m => seleccionComprometidos.has(m.id))
+    .reduce((a, m) => a + num(m.mi_parte), 0);
+
+  const sumaConsumos    = consumos.reduce((a, c) => a + (parseFloat(c.monto) || 0), 0) + montoComprometidoSeleccionado;
   const extrasNum       = parseFloat(extrasMonto) || 0;
   const totalResumen    = sumaConsumos + extrasNum;
+
   const compartidos     = consumos.filter(c => c.compartido);
-  const montoCompartido = compartidos.reduce((a, c) => {
+  const montoCompartidoManual = compartidos.reduce((a, c) => {
     const m     = parseFloat(c.monto) || 0;
     const parte = Math.round(partePorDiv(m, c.division, prop));
     return a + (m - parte);
   }, 0);
+
+  // Monto compartido de los comprometidos seleccionados
+  const montoCompartidoComprometidos = gastosComprometidos
+    .filter(m => seleccionComprometidos.has(m.id) && m.es_compartido)
+    .reduce((a, m) => a + num(m.parte_contraparte), 0);
+
+  const montoCompartido = montoCompartidoManual + montoCompartidoComprometidos;
 
   function resetConsumoForm() {
     setCDesc(''); setCMonto(''); setCCat('Otro'); setCFecha(FISO);
@@ -114,8 +155,9 @@ export function ResumenForm({ onDone }: Props) {
     if (!tarjeta || !periodo || !vcto) {
       setError('Completá tarjeta, período y vencimiento'); return;
     }
-    if (consumos.length === 0 && !extrasNum) {
-      setError('Agregá al menos un consumo o el monto de extras'); return;
+    const seleccionados = gastosComprometidos.filter(m => seleccionComprometidos.has(m.id));
+    if (consumos.length === 0 && !extrasNum && seleccionados.length === 0) {
+      setError('Agregá al menos un consumo o seleccioná gastos de tarjeta del período'); return;
     }
     setError(''); setLoading(true);
 
@@ -150,7 +192,29 @@ export function ResumenForm({ onDone }: Props) {
         monto_arrastrado   : montoArrastradoLocal,
       });
 
-      // 3. Guardar cada consumo como movimiento
+      // 3. Asociar gastos comprometidos seleccionados al resumen
+      for (const mov of seleccionados) {
+        await sbPatch('movimientos', mov.id, {
+          resumen_id: resumen.id,
+          estado    : 'confirmado',
+        });
+
+        // Generar deuda interpersonal si era compartido
+        const parteOtro = num(mov.parte_contraparte);
+        if (parteOtro > 0 && pareja) {
+          await crearDeudaInterpersonal({
+            acreedorId  : user.id,
+            deudorId    : pareja.id,
+            descripcion : `${mov.descripcion} — ${mov.division === 'mitad' ? '50/50' : 'proporcional'}`,
+            montoTotal  : parteOtro,
+            origen      : 'gasto',
+            movimientoId: mov.id,
+            notas       : `Resumen ${tarjeta} ${periodo}`,
+          });
+        }
+      }
+
+      // 4. Guardar consumos manuales como movimientos
       for (const c of consumos) {
         const montoC    = parseFloat(c.monto) || 0;
         const miParte   = Math.round(partePorDiv(montoC, c.division, prop));
@@ -179,12 +243,11 @@ export function ResumenForm({ onDone }: Props) {
           resumen_id       : resumen.id,
         });
 
-        // 4. Si está marcado como gasto recurrente → registrar pago
+        // Si está marcado como gasto recurrente → registrar pago
         if (c.esSuscripcion) {
           let subId = c.suscripcionId;
 
-          // Si eligió "nueva", crear el gasto recurrente primero
-          if (!subId && cSubNuevo.trim()) {
+          if ((subId === '__nueva__' || !subId) && cSubNuevo.trim()) {
             const nuevo = await crearGastoRecurrente({
               user_id        : user.id,
               nombre         : cSubNuevo.trim(),
@@ -207,7 +270,6 @@ export function ResumenForm({ onDone }: Props) {
               monto              : montoC,
             });
 
-            // Actualizar monto_estimado con el valor real
             const gr = gastosRecurrentes.find(s => s.id === subId);
             if (gr && gr.monto_estimado !== montoC) {
               const { actualizarGastoRecurrente } = await import('../../lib/gastos_recurrentes.service');
@@ -217,13 +279,13 @@ export function ResumenForm({ onDone }: Props) {
         }
       }
 
-      // 5. Deuda interpersonal consolidada
-      if (montoCompartido > 0 && pareja) {
+      // 5. Deuda interpersonal consolidada por consumos manuales compartidos
+      if (montoCompartidoManual > 0 && pareja) {
         await crearDeudaInterpersonal({
           acreedorId  : user.id,
           deudorId    : pareja.id,
           descripcion : `Gastos compartidos resumen ${tarjeta} ${periodo}`,
-          montoTotal  : montoCompartido,
+          montoTotal  : montoCompartidoManual,
           origen      : 'resumen',
           resumenId   : resumen.id,
           notas       : `${compartidos.length} consumos compartidos`,
@@ -232,6 +294,7 @@ export function ResumenForm({ onDone }: Props) {
 
       const msgs = [
         `Resumen ${tarjeta} ${periodo} cargado ✓`,
+        seleccionados.length > 0 ? `${seleccionados.length} gastos del mes asociados` : '',
         montoCompartido > 0 ? `${pareja?.nombre || 'Tu pareja'} te debe ${fmt(montoCompartido)}` : '',
         montoArrastrado > 0 ? `Arrastre anterior: ${fmt(montoArrastrado)}` : '',
       ].filter(Boolean).join(' · ');
@@ -265,10 +328,62 @@ export function ResumenForm({ onDone }: Props) {
         <Input label="Fecha de vencimiento *" type="date" value={vcto} onChange={e => setVcto(e.target.value)} fullWidth />
       </Card>
 
-      {/* Consumos */}
+      {/* Gastos comprometidos del período */}
+      {gastosComprometidos.length > 0 && (
+        <Card className={styles.section}>
+          <div className={styles.sectionTitle}>
+            Gastos cargados con esta tarjeta{' '}
+            <Badge variant="warning">{gastosComprometidos.length}</Badge>
+          </div>
+          <div className={styles.hint}>
+            Gastos registrados durante el mes con {tarjeta}. Seleccioná los que pertenecen a este resumen.
+          </div>
+          <div className={styles.consumoList}>
+            {gastosComprometidos.map(mov => {
+              const seleccionado = seleccionComprometidos.has(mov.id);
+              const parteOtro    = num(mov.parte_contraparte);
+              return (
+                <div
+                  key      ={mov.id}
+                  className={`${styles.consumoItem} ${!seleccionado ? styles.itemDesseleccionado : ''}`}
+                  onClick  ={() => toggleSeleccionComprometido(mov.id)}
+                  style    ={{ cursor: 'pointer', opacity: seleccionado ? 1 : 0.5 }}
+                >
+                  <div className={styles.consumoMain}>
+                    <div className={styles.consumoInfo}>
+                      <div className={styles.consumoDesc}>
+                        <span style={{ marginRight: 6 }}>{seleccionado ? '☑' : '☐'}</span>
+                        {mov.descripcion}
+                        {mov.es_compartido && (
+                          <span className={styles.compTag}>
+                            {' · '}{mov.division === 'mitad' ? '50/50' : 'Prop.'}
+                            {pareja ? ` · ${pareja.nombre}: ${fmt(parteOtro)}` : ''}
+                          </span>
+                        )}
+                      </div>
+                      <div className={styles.consumoMeta}>{mov.fecha} · {mov.categoria}</div>
+                    </div>
+                    <div className={styles.consumoRight}>
+                      <span className={styles.consumoMonto}>{fmt(num(mov.monto_total))}</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {seleccionComprometidos.size > 0 && (
+            <div className={styles.consumoTotal}>
+              <span>{seleccionComprometidos.size} seleccionados</span>
+              <span>{fmt(montoComprometidoSeleccionado)}</span>
+            </div>
+          )}
+        </Card>
+      )}
+
+      {/* Consumos manuales adicionales */}
       <Card className={styles.section}>
         <div className={styles.sectionTitle}>
-          Consumos <Badge variant="default">{consumos.length}</Badge>
+          Otros consumos del resumen <Badge variant="default">{consumos.length}</Badge>
         </div>
 
         {/* Formulario inline */}
@@ -278,7 +393,6 @@ export function ResumenForm({ onDone }: Props) {
           <Select label="Categoría" options={CAT_OPTIONS} value={cCat} onChange={e => setCCat(e.target.value)} fullWidth />
           <Input label="Monto ($) *" type="number" placeholder="0" value={cMonto} onChange={e => setCMonto(e.target.value)} fullWidth />
 
-          {/* Toggle compartido */}
           <label className={`${styles.sharedToggle} ${cComp ? styles.sharedActive : ''}`}>
             <input
               type    ="checkbox"
@@ -303,7 +417,6 @@ export function ResumenForm({ onDone }: Props) {
             </div>
           )}
 
-          {/* ── Toggle gasto recurrente ── */}
           <div className={subStyles.subToggleRow}>
             <label className={`${subStyles.subToggle} ${cEsSub ? subStyles.subToggleActivo : ''}`}>
               <input
@@ -345,7 +458,7 @@ export function ResumenForm({ onDone }: Props) {
           </Button>
         </div>
 
-        {/* Lista de consumos */}
+        {/* Lista de consumos manuales */}
         {consumos.length > 0 && (
           <div className={styles.consumoList}>
             {consumos.map((c, i) => {
@@ -412,10 +525,18 @@ export function ResumenForm({ onDone }: Props) {
       {/* Resumen del total */}
       {totalResumen > 0 && (
         <div className={styles.resumenFinal}>
-          <div className={styles.resumenRow}>
-            <span>Consumos</span>
-            <span>{fmt(sumaConsumos)}</span>
-          </div>
+          {seleccionComprometidos.size > 0 && (
+            <div className={styles.resumenRow}>
+              <span>Gastos del período ({seleccionComprometidos.size})</span>
+              <span>{fmt(montoComprometidoSeleccionado)}</span>
+            </div>
+          )}
+          {consumos.length > 0 && (
+            <div className={styles.resumenRow}>
+              <span>Otros consumos ({consumos.length})</span>
+              <span>{fmt(consumos.reduce((a, c) => a + (parseFloat(c.monto) || 0), 0))}</span>
+            </div>
+          )}
           {extrasNum > 0 && (
             <div className={styles.resumenRow}>
               <span>{extrasDesc}</span>

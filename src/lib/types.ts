@@ -11,7 +11,7 @@ export interface Usuario {
 
 // ── Movimientos ────────────────────────────────────────
 export type TipoMovimiento  = 'gasto' | 'deuda' | 'ahorro' | 'ingreso';
-export type EstadoMovimiento = 'confirmado' | 'pendiente' | 'parcial' | 'rechazado' | 'pagado';
+export type EstadoMovimiento = 'confirmado' | 'pendiente' | 'parcial' | 'rechazado' | 'pagado' | 'comprometido';
 export type TipoDivision    = 'personal' | 'prop' | 'mitad' | 'novia';
 
 export interface Movimiento {

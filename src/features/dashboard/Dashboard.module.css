@@ -5,7 +5,7 @@
 .tb { flex: 1; padding: 7px; border: none; background: transparent; color: var(--tx3); font-family: var(--font-sans); font-size: 12px; font-weight: 500; border-radius: 16px; cursor: pointer; transition: all 0.15s; }
 .tb.active { background: var(--ac); color: var(--bg); }
 
-/* 3 stats: disponible grande arriba, dos pequeños abajo */
+/* Grid: disponible grande arriba, tres pequeños abajo */
 .grid3 {
   display              : grid;
   grid-template-columns: 1fr 1fr;
@@ -15,7 +15,7 @@
 }
 
 .statMain {
-  grid-column  : 1 / -1;       /* ocupa el ancho completo */
+  grid-column  : 1 / -1;
   background   : var(--sf);
   border       : 1px solid var(--bd2);
   border-radius: var(--r);
@@ -29,7 +29,8 @@
   padding      : 14px 12px;
 }
 
-.faltaCard { border-color: var(--bd); }
+.faltaCard   { border-color: var(--bd); }
+.tarjetaCard { border-color: rgba(210, 230, 97, 0.2); }
 
 .statLabel {
   font-size     : 10px;
