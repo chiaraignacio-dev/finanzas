@@ -247,7 +247,7 @@ export function ResumenForm({ onDone }: Props) {
         if (c.esSuscripcion) {
           let subId = c.suscripcionId;
 
-          if ((subId === '__nueva__' || !subId) && cSubNuevo.trim()) {
+          if (!subId && cSubNuevo.trim()) {
             const nuevo = await crearGastoRecurrente({
               user_id        : user.id,
               nombre         : cSubNuevo.trim(),

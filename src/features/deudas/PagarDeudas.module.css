@@ -17,14 +17,35 @@
 .pagoInline { display: flex; flex-direction: column; gap: 8px; }
 .accionesPago { display: flex; gap: 8px; }
 .botonTotal { background: none; border: none; color: var(--gn); font-size: 12px; cursor: pointer; text-align: center; width: 100%; padding: 4px; text-decoration: underline; }
-.filaServicio { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--bd); }
+.filaServicio { display: flex; align-items: flex-start; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--bd); }
 .filaServicio:last-child { border-bottom: none; }
-.iconoServicio { width: 36px; height: 36px; border-radius: 9px; background: rgba(139,92,246,0.12); display: flex; align-items: center; justify-content: center; font-size: 17px; flex-shrink: 0; }
+.iconoServicio { width: 36px; height: 36px; border-radius: 9px; background: rgba(139,92,246,0.12); display: flex; align-items: center; justify-content: center; font-size: 17px; flex-shrink: 0; margin-top: 2px; }
 .infoServicio { flex: 1; min-width: 0; }
 .nombreServicio { font-size: 13px; font-weight: 500; }
 .metaServicio { font-size: 11px; color: var(--tx3); margin-top: 2px; }
 .derechaServicio { text-align: right; flex-shrink: 0; }
 .montoServicio { font-size: 14px; font-weight: 600; font-family: var(--font-mono); color: var(--am); }
+
+/* Pregunta pareja al pagar servicio compartido */
+.preguntaPareja {
+  margin-top   : 8px;
+  padding      : 10px 12px;
+  background   : rgba(59, 130, 246, 0.08);
+  border       : 1px solid rgba(59, 130, 246, 0.2);
+  border-radius: var(--rs);
+}
+.preguntaTexto {
+  font-size    : 12px;
+  color        : var(--ac2);
+  font-weight  : 600;
+  margin-bottom: 8px;
+}
+.preguntaBotones {
+  display: flex;
+  gap    : 6px;
+  flex-wrap: wrap;
+}
+
 .vacio { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 60px 24px; color: var(--tx3); font-size: 14px; text-align: center; }
 .cargando { display: flex; justify-content: center; padding: 60px; }
 .spinner { width: 28px; height: 28px; border: 3px solid var(--bd2); border-top-color: var(--ac); border-radius: 50%; animation: girar 0.8s linear infinite; }

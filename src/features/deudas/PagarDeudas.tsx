@@ -17,16 +17,19 @@ const ICONOS_SERVICIO: Record<string, string> = {
 };
 
 export function PagarDeudas({ onBadge }: Props) {
-  const { usuario, todosUsuarios }     = usarSesion();
-  const { mostrar: mostrarToast }      = usarToast();
-  const pago                           = usarPago();
+  const { usuario, todosUsuarios, pareja } = usarSesion();
+  const { mostrar: mostrarToast }          = usarToast();
+  const pago                               = usarPago();
 
-  const [resumenes,      setResumenes]      = useState<ResumenTarjeta[]>([]);
-  const [servicios,      setServicios]      = useState<Servicio[]>([]);
-  const [deudasPropias,  setDeudasPropias]  = useState<Movimiento[]>([]);
-  const [deudasQueDebemos, setDeudasQueDebemos] = useState<DeudaInterpersonal[]>([]);
-  const [deudasANuestroFavor, setDeudasANuestroFavor] = useState<DeudaInterpersonal[]>([]);
-  const [cargando,       setCargando]       = useState(true);
+  const [resumenes,          setResumenes]          = useState<ResumenTarjeta[]>([]);
+  const [servicios,          setServicios]          = useState<Servicio[]>([]);
+  const [deudasPropias,      setDeudasPropias]      = useState<Movimiento[]>([]);
+  const [deudasQueDebemos,   setDeudasQueDebemos]   = useState<DeudaInterpersonal[]>([]);
+  const [deudasANuestroFavor,setDeudasANuestroFavor]= useState<DeudaInterpersonal[]>([]);
+  const [cargando,           setCargando]           = useState(true);
+
+  // Estado para el pago de servicio compartido
+  const [servicioEnPago, setServicioEnPago] = useState<string | null>(null);
 
   const cargar = useCallback(async () => {
     setCargando(true);
@@ -35,8 +38,8 @@ export function PagarDeudas({ onBadge }: Props) {
         sbGet<ResumenTarjeta>('resumenes_tarjeta', { user_id: `eq.${usuario.id}`, estado: 'neq.pagado', es_vigente: 'eq.true' }),
         sbGet<Servicio>('servicios',               { user_id: `eq.${usuario.id}`, estado: 'eq.pendiente' }),
         sbGet<Movimiento>('movimientos',           { user_id: `eq.${usuario.id}`, tipo: 'eq.deuda', estado: 'eq.pendiente' }),
-        sbGet<DeudaInterpersonal>('deudas_interpersonales', { deudor_id:    `eq.${usuario.id}`, estado: 'neq.pagado' }),
-        sbGet<DeudaInterpersonal>('deudas_interpersonales', { acreedor_id:  `eq.${usuario.id}`, estado: 'neq.pagado' }),
+        sbGet<DeudaInterpersonal>('deudas_interpersonales', { deudor_id:   `eq.${usuario.id}`, estado: 'neq.pagado' }),
+        sbGet<DeudaInterpersonal>('deudas_interpersonales', { acreedor_id: `eq.${usuario.id}`, estado: 'neq.pagado' }),
       ]);
       setResumenes(resumenesBD);
       setServicios(serviciosBD);
@@ -49,12 +52,12 @@ export function PagarDeudas({ onBadge }: Props) {
 
   useEffect(() => { cargar(); }, [cargar]);
 
-  // ── Calcular saldo de un ítem ────────────────────────
   function calcularSaldo(total: string, pagado: string | undefined) {
     return num(total) - num(pagado);
   }
 
   // ── Pagar resumen de tarjeta ─────────────────────────
+  // El pago del resumen SÍ impacta en Gastado y Disponible (es cuando sale la plata)
   async function pagarResumen(resumen: ResumenTarjeta, montoPagado: number) {
     const saldo    = calcularSaldo(resumen.monto_total, resumen.monto_pagado);
     const efectivo = Math.min(montoPagado, saldo);
@@ -62,32 +65,111 @@ export function PagarDeudas({ onBadge }: Props) {
     const estado   = num(resumen.monto_total) - nuevoPag <= 0 ? 'pagado' : 'parcial';
     try {
       await sbPatch('resumenes_tarjeta', resumen.id, { monto_pagado: nuevoPag, estado });
+      // Este movimiento tipo 'deuda' confirmado SÍ impacta en Gastado/Disponible
       await sbPost('movimientos', {
-        fecha: obtenerFechaISO(), tipo: 'deuda',
-        descripcion: `Pago ${resumen.tarjeta} ${resumen.periodo}${estado === 'pagado' ? ' — total' : ' — parcial'}`,
-        categoria: 'Deuda tarjeta', medio_pago: resumen.tarjeta,
-        division: 'personal', monto_total: efectivo, monto_pagado: efectivo,
-        mi_parte: efectivo, parte_usuario: efectivo, parte_contraparte: 0,
-        en_cuotas: false, user_id: usuario.id, es_compartido: false, estado: 'confirmado',
+        fecha        : obtenerFechaISO(),
+        tipo         : 'deuda',
+        descripcion  : `Pago ${resumen.tarjeta} ${resumen.periodo}${estado === 'pagado' ? ' — total' : ' — parcial'}`,
+        categoria    : 'Deuda tarjeta',
+        medio_pago   : resumen.tarjeta,
+        division     : 'personal',
+        monto_total  : efectivo,
+        monto_pagado : efectivo,
+        mi_parte     : efectivo,
+        parte_usuario: efectivo,
+        parte_contraparte: 0,
+        en_cuotas    : false,
+        user_id      : usuario.id,
+        es_compartido: false,
+        estado       : 'confirmado',
       });
       mostrarToast(estado === 'pagado' ? `${resumen.tarjeta} cancelado ✓` : 'Pago parcial registrado ✓');
       pago.cancelarPago(); cargar();
     } catch { mostrarToast('Error al registrar el pago', 'err'); }
   }
 
-  // ── Pagar servicio ───────────────────────────────────
-  async function pagarServicio(srv: Servicio) {
+  // ── Iniciar pago de servicio ─────────────────────────
+  function iniciarPagoServicio(srv: Servicio) {
+    setServicioEnPago(srv.id);
+  }
+
+  function cancelarPagoServicio() {
+    setServicioEnPago(null);
+  }
+
+  // ── Confirmar pago de servicio ───────────────────────
+  // Si es compartido, pregunta si la pareja ya pagó su parte
+  // Si sí → cancela la deuda interpersonal correspondiente
+  // Si no → la deuda interpersonal queda activa (aparece en Balance)
+  async function confirmarPagoServicio(srv: Servicio, parejaYaPagoSuParte: boolean | null) {
     try {
-      await sbPatch('servicios', srv.id, { estado: 'pagado', pagado_en: new Date().toISOString(), quien_pago: 'yo' });
-      await sbPost('movimientos', {
-        fecha: obtenerFechaISO(), tipo: 'deuda',
-        descripcion: `Pago ${srv.servicio}`,
-        categoria: 'Servicios', medio_pago: 'contado', division: 'personal',
-        monto_total: num(srv.mi_parte), monto_pagado: num(srv.mi_parte),
-        mi_parte: num(srv.mi_parte), parte_usuario: num(srv.mi_parte), parte_contraparte: 0,
-        en_cuotas: false, user_id: usuario.id, es_compartido: false, estado: 'confirmado',
+      // 1. Marcar el servicio como pagado
+      await sbPatch('servicios', srv.id, {
+        estado    : 'pagado',
+        pagado_en : new Date().toISOString(),
+        quien_pago: 'yo',
       });
-      mostrarToast(`${srv.servicio} pagado ✓`); cargar();
+
+      // 2. Registrar el movimiento de pago (mi parte)
+      await sbPost('movimientos', {
+        fecha        : obtenerFechaISO(),
+        tipo         : 'deuda',
+        descripcion  : `Pago ${srv.servicio}`,
+        categoria    : 'Servicios',
+        medio_pago   : 'contado',
+        division     : 'personal',
+        monto_total  : num(srv.mi_parte),
+        monto_pagado : num(srv.mi_parte),
+        mi_parte     : num(srv.mi_parte),
+        parte_usuario: num(srv.mi_parte),
+        parte_contraparte: 0,
+        en_cuotas    : false,
+        user_id      : usuario.id,
+        es_compartido: false,
+        estado       : 'confirmado',
+      });
+
+      // 3. Si es compartido, gestionar la deuda interpersonal
+      if (srv.es_compartido && pareja) {
+        if (parejaYaPagoSuParte) {
+          // La pareja ya transfirió → buscar y cerrar la deuda interpersonal
+          const deudas = await sbGet<DeudaInterpersonal>('deudas_interpersonales', {
+            acreedor_id: `eq.${usuario.id}`,
+            deudor_id  : `eq.${pareja.id}`,
+            estado     : 'neq.pagado',
+          }, 0);
+          // Buscar la deuda del servicio correspondiente
+          const deudaServicio = deudas.find(d =>
+            d.descripcion.toLowerCase().includes(srv.servicio.toLowerCase())
+          );
+          if (deudaServicio) {
+            await sbPatch('deudas_interpersonales', deudaServicio.id, {
+              monto_pagado: deudaServicio.monto_total,
+              estado      : 'pagado',
+            });
+            // Registrar ingreso por el cobro
+            await sbPost('ingresos', {
+              user_id        : usuario.id,
+              descripcion    : `Cobro parte ${pareja.nombre}: ${srv.servicio}`,
+              monto          : num(deudaServicio.monto_total),
+              tipo           : 'extra',
+              fecha_esperada : obtenerFechaISO(),
+              fecha_recibido : obtenerFechaISO(),
+              recibido       : true,
+              recurrente     : false,
+            });
+          }
+          mostrarToast(`${srv.servicio} pagado ✓ — deuda con ${pareja.nombre} saldada`);
+        } else {
+          // La pareja no pagó → la deuda interpersonal queda activa en Balance
+          mostrarToast(`${srv.servicio} pagado ✓ — ${pareja.nombre} te debe su parte`);
+        }
+      } else {
+        mostrarToast(`${srv.servicio} pagado ✓`);
+      }
+
+      cancelarPagoServicio();
+      cargar();
     } catch { mostrarToast('Error', 'err'); }
   }
 
@@ -101,12 +183,21 @@ export function PagarDeudas({ onBadge }: Props) {
       await sbPatch('movimientos', deuda.id, { monto_pagado: nuevoPag, estado });
       if (efectivo < saldo) {
         await sbPost('movimientos', {
-          fecha: obtenerFechaISO(), tipo: 'deuda',
-          descripcion: `Pago parcial: ${deuda.descripcion}`,
-          categoria: 'Deuda', medio_pago: 'contado', division: 'personal',
-          monto_total: efectivo, monto_pagado: efectivo, mi_parte: efectivo,
-          parte_usuario: efectivo, parte_contraparte: 0,
-          en_cuotas: false, user_id: usuario.id, es_compartido: false, estado: 'confirmado',
+          fecha        : obtenerFechaISO(),
+          tipo         : 'deuda',
+          descripcion  : `Pago parcial: ${deuda.descripcion}`,
+          categoria    : 'Deuda',
+          medio_pago   : 'contado',
+          division     : 'personal',
+          monto_total  : efectivo,
+          monto_pagado : efectivo,
+          mi_parte     : efectivo,
+          parte_usuario: efectivo,
+          parte_contraparte: 0,
+          en_cuotas    : false,
+          user_id      : usuario.id,
+          es_compartido: false,
+          estado       : 'confirmado',
         });
       }
       mostrarToast(estado === 'confirmado' ? 'Deuda cancelada ✓' : 'Pago parcial ✓');
@@ -132,10 +223,14 @@ export function PagarDeudas({ onBadge }: Props) {
     const estado   = num(deuda.monto_total) - nuevoPag <= 0 ? 'pagado' : 'parcial';
     try {
       await sbPost('ingresos', {
-        user_id: usuario.id, descripcion: `Cobro: ${deuda.descripcion}`,
-        monto: efectivo, tipo: 'extra',
-        fecha_esperada: obtenerFechaISO(), fecha_recibido: obtenerFechaISO(),
-        recibido: true, recurrente: false,
+        user_id        : usuario.id,
+        descripcion    : `Cobro: ${deuda.descripcion}`,
+        monto          : efectivo,
+        tipo           : 'extra',
+        fecha_esperada : obtenerFechaISO(),
+        fecha_recibido : obtenerFechaISO(),
+        recibido       : true,
+        recurrente     : false,
       });
       await sbPatch('deudas_interpersonales', deuda.id, { monto_pagado: nuevoPag, estado });
       mostrarToast(estado === 'pagado' ? 'Cobro total confirmado ✓' : `Cobro parcial de ${fmt(efectivo)} confirmado ✓`);
@@ -207,8 +302,8 @@ export function PagarDeudas({ onBadge }: Props) {
         <>
           <div className={styles.seccion} style={{ color: 'var(--gn)' }}>💚 Me deben</div>
           {deudasANuestroFavor.map(d => {
-            const saldo   = calcularSaldo(d.monto_total, d.monto_pagado);
-            const deudor  = Object.values(todosUsuarios).find(u => u.id === d.deudor_id);
+            const saldo  = calcularSaldo(d.monto_total, d.monto_pagado);
+            const deudor = Object.values(todosUsuarios).find(u => u.id === d.deudor_id);
             return (
               <Card key={d.id} className={styles.cardDeuda} style={{ borderColor: 'rgba(32,219,144,0.35)' }}>
                 <div className={styles.cardEncabezado}>
@@ -319,12 +414,49 @@ export function PagarDeudas({ onBadge }: Props) {
                   <div className={styles.nombreServicio}>{s.servicio.charAt(0).toUpperCase() + s.servicio.slice(1)}</div>
                   <div className={styles.metaServicio}>
                     Vence: {new Date(s.fecha_vencimiento).toLocaleDateString('es-AR')}
-                    {s.es_compartido ? ' · Compartido' : ''}
+                    {s.es_compartido ? ` · Compartido (tu parte: ${fmt(num(s.mi_parte))})` : ''}
                   </div>
+
+                  {/* Si estamos en modo pago de este servicio */}
+                  {servicioEnPago === s.id && s.es_compartido && pareja && (
+                    <div className={styles.preguntaPareja}>
+                      <div className={styles.preguntaTexto}>
+                        ¿{pareja.nombre} ya te pasó su parte?
+                      </div>
+                      <div className={styles.preguntaBotones}>
+                        <Button
+                          variant="success" size="sm"
+                          onClick={() => confirmarPagoServicio(s, true)}
+                        >
+                          Sí, me pagó ✓
+                        </Button>
+                        <Button
+                          variant="secondary" size="sm"
+                          onClick={() => confirmarPagoServicio(s, false)}
+                        >
+                          No, me debe
+                        </Button>
+                        <Button
+                          variant="ghost" size="sm"
+                          onClick={cancelarPagoServicio}
+                        >
+                          Cancelar
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <div className={styles.derechaServicio}>
-                  <div className={styles.montoServicio}>{fmt(num(s.mi_parte))}</div>
-                  <Button variant="success" size="sm" onClick={() => pagarServicio(s)} style={{ marginTop: 4 }}>Pagar ✓</Button>
+                  <div className={styles.montoServicio}>{fmt(num(s.monto_total))}</div>
+                  {servicioEnPago !== s.id && (
+                    <Button
+                      variant="success" size="sm"
+                      onClick={() => s.es_compartido ? iniciarPagoServicio(s) : confirmarPagoServicio(s, null)}
+                      style={{ marginTop: 4 }}
+                    >
+                      Pagar ✓
+                    </Button>
+                  )}
                 </div>
               </div>
             ))}

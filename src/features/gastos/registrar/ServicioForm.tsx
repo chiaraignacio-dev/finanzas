@@ -3,6 +3,7 @@ import { Input, Button, Card }            from '../../../components/ui';
 import { RadioGroup }                     from '../../../components/ui/RadioGroup';
 import { usarSesion }                     from '../../../context/SesionContext';
 import { sbPost }                         from '../../../lib/supabase';
+import { crearDeudaInterpersonal }        from '../../../lib/deudas.service';
 import { fmt, partePorDiv, num }          from '../../../lib/utils';
 import styles                             from './forms.module.css';
 
@@ -21,7 +22,7 @@ const OPCIONES_COMPARTIDO = [
 ];
 
 export function ServicioForm({ onExito }: Props) {
-  const { usuario, proporcion } = usarSesion();
+  const { usuario, pareja, proporcion } = usarSesion();
   const [tipo,     setTipo]     = useState('');
   const [monto,    setMonto]    = useState('');
   const [vcto,     setVcto]     = useState('');
@@ -31,13 +32,17 @@ export function ServicioForm({ onExito }: Props) {
   const [cargando, setCargando] = useState(false);
   const [error,    setError]    = useState('');
 
-  const montoNum = num(monto);
-  const miParte  = Math.round(comp === 'si' ? partePorDiv(montoNum, 'prop', proporcion) : montoNum);
+  const montoNum   = num(monto);
+  const esComp     = comp === 'si';
+  // Mi parte: si es compartido, proporcional; si no, el total
+  const miParte    = Math.round(esComp ? partePorDiv(montoNum, 'prop', proporcion) : montoNum);
+  const parteOtro  = Math.round(montoNum - miParte);
 
   async function guardar() {
     if (!tipo || !montoNum || !vcto) { setError('Completá tipo, importe y vencimiento'); return; }
     setError(''); setCargando(true);
     try {
+      // 1. Crear el servicio
       await sbPost('servicios', {
         servicio         : tipo,
         monto_total      : montoNum,
@@ -48,9 +53,27 @@ export function ServicioForm({ onExito }: Props) {
         user_id          : usuario.id,
         estado           : 'pendiente',
         fecha_vencimiento: vcto,
-        es_compartido    : comp === 'si',
+        es_compartido    : esComp,
       });
-      onExito('Servicio registrado ✓');
+
+      // 2. Si es compartido, generar deuda interpersonal de Abril hacia Ignacio
+      //    (Ignacio va a pagar el total, Abril le debe su parte)
+      if (esComp && parteOtro > 0 && pareja) {
+        await crearDeudaInterpersonal({
+          acreedorId  : usuario.id,
+          deudorId    : pareja.id,
+          descripcion : `Servicio: ${tipo} — vence ${vcto}`,
+          montoTotal  : parteOtro,
+          origen      : 'manual',
+          notas       : `Parte de ${pareja.nombre} en ${tipo}${consumo ? ` (${consumo})` : ''}`,
+        });
+      }
+
+      const msg = esComp && pareja
+        ? `Servicio registrado ✓ — ${pareja.nombre} te debe ${fmt(parteOtro)}`
+        : 'Servicio registrado ✓';
+
+      onExito(msg);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Error al guardar');
     } finally { setCargando(false); }
@@ -63,9 +86,22 @@ export function ServicioForm({ onExito }: Props) {
       <Input label="Fecha de vencimiento *" type="date" value={vcto} onChange={e => setVcto(e.target.value)} fullWidth />
       <Input label="Consumo (opcional)" placeholder="180 kWh / 12 m³…" value={consumo} onChange={e => setConsumo(e.target.value)} fullWidth />
       <RadioGroup name="comp" label="¿Es compartido?" options={OPCIONES_COMPARTIDO} value={comp} onChange={setComp} />
-      {montoNum > 0 && <div className={styles.pill}><span>Tu parte</span><strong>{fmt(miParte)}</strong></div>}
+
+      {montoNum > 0 && (
+        <div className={styles.pill}>
+          <span>Tu parte</span>
+          <strong>{fmt(miParte)}</strong>
+        </div>
+      )}
+
+      {esComp && parteOtro > 0 && pareja && (
+        <div className={styles.alert}>
+          ⚡ Se registrará que {pareja.nombre} te debe <strong>{fmt(parteOtro)}</strong> cuando pagues el servicio.
+        </div>
+      )}
+
       <Input label="Notas" placeholder="Opcional…" value={notas} onChange={e => setNotas(e.target.value)} fullWidth />
-      <div className={styles.alert}>🔔 Aparecerá en Deudas hasta que lo marques como pagado.</div>
+      <div className={styles.alertInfo}>🔔 Aparecerá en Deudas hasta que lo marques como pagado.</div>
       {error && <div className={styles.error}>{error}</div>}
       <Button variant="primary" fullWidth loading={cargando} onClick={guardar}>Guardar servicio</Button>
     </Card>

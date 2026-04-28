@@ -41,7 +41,12 @@ export function Dashboard() {
 
         const [mios, comp] = await Promise.all([
           sbGet<Movimiento>('movimientos', { user_id: `eq.${user.id}`, fecha: `gte.${DESDE_MES}` }),
-          sbGet<Movimiento>('movimientos', { es_compartido: 'eq.true', estado: 'eq.confirmado', user_id: `neq.${user.id}`, fecha: `gte.${DESDE_MES}` }),
+          sbGet<Movimiento>('movimientos', {
+            es_compartido: 'eq.true',
+            estado       : 'eq.confirmado',
+            user_id      : `neq.${user.id}`,
+            fecha        : `gte.${DESDE_MES}`,
+          }),
         ]);
         rows = [...mios, ...comp];
       } else {
@@ -59,9 +64,18 @@ export function Dashboard() {
         });
       }
 
-      // Gastos confirmados — excluye comprometidos (tarjeta sin resumen)
+      // ── Gastos confirmados que SÍ impactan en Disponible ──────────────────
+      // Excluye:
+      //   - comprometidos (tarjeta sin resumen aún)
+      //   - movimientos vinculados a un resumen de tarjeta (son los consumos del
+      //     detalle; el impacto real ocurre cuando se registra el PAGO del resumen)
       const gasTotal = rows
-        .filter(r => r.tipo === 'gasto' && !r.es_ahorro && r.estado === 'confirmado')
+        .filter(r =>
+          r.tipo === 'gasto' &&
+          !r.es_ahorro &&
+          r.estado === 'confirmado' &&
+          !r.resumen_id          // excluir consumos de resumen — solo el pago cuenta
+        )
         .reduce((acc, r) => {
           if (mode === 'hogar') return acc + num(r.monto_total);
           const esMio = String(r.user_id) === String(user.id);
@@ -71,37 +85,48 @@ export function Dashboard() {
           return acc + v;
         }, 0);
 
-      // Gastos comprometidos (tarjeta de crédito sin resumen asociado)
-      const enTarjetaTotal = rows
-        .filter(r => r.tipo === 'gasto' && !r.es_ahorro && r.estado === 'comprometido')
-        .reduce((acc, r) => {
-          if (mode === 'hogar') return acc + num(r.monto_total);
-          const esMio = String(r.user_id) === String(user.id);
-          const v = r.es_compartido && !esMio
-            ? num(r.parte_contraparte || r.mi_parte)
-            : num(r.mi_parte);
-          return acc + v;
-        }, 0);
-
+      // ── Pagos de deudas (tarjetas, servicios, etc.) ───────────────────────
+      // Estos SÍ impactan: cuando pagás el resumen, ese movimiento tipo 'deuda'
+      // confirmado sin resumen_id representa la salida real de dinero
       const pagosDeuda = rows
         .filter(r => r.tipo === 'deuda' && r.estado === 'confirmado')
         .reduce((acc, r) => acc + num(r.mi_parte), 0);
 
+      // ── Gastos comprometidos (tarjeta sin cerrar) ─────────────────────────
+      const enTarjetaTotal = rows
+        .filter(r =>
+          r.tipo === 'gasto' &&
+          !r.es_ahorro &&
+          r.estado === 'comprometido'
+        )
+        .reduce((acc, r) => {
+          if (mode === 'hogar') return acc + num(r.monto_total);
+          const esMio = String(r.user_id) === String(user.id);
+          const v = r.es_compartido && !esMio
+            ? num(r.parte_contraparte || r.mi_parte)
+            : num(r.mi_parte);
+          return acc + v;
+        }, 0);
+
       const [srv, resumenes, metasData, ahorrosData] = await Promise.all([
-        sbGet<Servicio>('servicios', { user_id: `eq.${user.id}`, estado: 'eq.pendiente' }),
-        sbGet<ResumenTarjeta>('resumenes_tarjeta', { user_id: `eq.${user.id}`, estado: 'neq.pagado', es_vigente: 'eq.true' }),
-        sbGet<Meta>('metas', { user_id: `eq.${user.id}`, activa: 'eq.true' }, 30_000),
-        sbGet<Movimiento>('movimientos', {
-          user_id: `eq.${user.id}`,
-        }, 0),
+        sbGet<Servicio>('servicios',       { user_id: `eq.${user.id}`, estado: 'eq.pendiente' }),
+        sbGet<ResumenTarjeta>('resumenes_tarjeta', {
+          user_id   : `eq.${user.id}`,
+          estado    : 'neq.pagado',
+          es_vigente: 'eq.true',
+        }),
+        sbGet<Meta>('metas',     { user_id: `eq.${user.id}`, activa: 'eq.true' }, 30_000),
+        sbGet<Movimiento>('movimientos', { user_id: `eq.${user.id}` }, 0),
       ]);
 
       const hoy    = new Date().toISOString().split('T')[0];
       const mesMes = DESDE_MES.substring(0, 7);
-      const srvP   = srv
+
+      // Falta pagar = servicios pendientes del mes + saldo de tarjetas vigentes
+      const srvP  = srv
         .filter(s => s.fecha_vencimiento.substring(0, 7) === mesMes || s.fecha_vencimiento <= hoy)
         .reduce((a, s) => a + num(s.mi_parte), 0);
-      const tarjP  = resumenes.reduce((a, r) => a + num(r.monto_total) - num(r.monto_pagado), 0);
+      const tarjP = resumenes.reduce((a, r) => a + num(r.monto_total) - num(r.monto_pagado), 0);
 
       const soloAhorros = ahorrosData.filter(m => m.es_ahorro || m.tipo === 'ahorro');
 
@@ -142,7 +167,7 @@ export function Dashboard() {
         <button className={`${styles.tb} ${mode === 'hogar' ? styles.active : ''}`} onClick={() => setMode('hogar')}>🏠 Hogar</button>
       </div>
 
-      {/* Stats grid: disponible arriba full width, 3 pequeños abajo */}
+      {/* Stats grid */}
       <div className={styles.grid3}>
         <div className={styles.statMain}>
           <div className={styles.statLabel}>Disponible</div>
