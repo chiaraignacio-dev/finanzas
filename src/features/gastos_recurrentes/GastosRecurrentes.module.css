@@ -14,20 +14,22 @@
 }
 
 .resumenItem {
-  background: var(--card);
-  border-radius: 10px;
+  background: var(--sf);
+  border-radius: 12px;
   padding: 0.75rem;
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
   text-align: center;
+  border: 1px solid var(--bd);
 }
 
 .resumenLabel {
   font-size: 0.7rem;
-  color: var(--tx2);
+  color: var(--tx3);
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  font-weight: 600;
 }
 
 .resumenValor {
@@ -50,7 +52,7 @@
 
 .seccionTitulo {
   font-size: 0.85rem;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--tx2);
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -61,10 +63,11 @@
   color: #fff;
   border: none;
   padding: 0.4rem 0.9rem;
-  border-radius: 8px;
+  border-radius: 10px;
   font-size: 0.85rem;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
+  font-family: var(--font-sans);
 }
 
 /* ── Lista ────────────────────────────────────────────── */
@@ -77,7 +80,7 @@
 
 .cargando {
   text-align: center;
-  color: var(--tx2);
+  color: var(--tx3);
   padding: 3rem;
   font-size: 0.9rem;
 }
@@ -100,26 +103,28 @@
   color: #fff;
   border: none;
   padding: 0.5rem 1.25rem;
-  border-radius: 8px;
+  border-radius: 10px;
   cursor: pointer;
-  font-weight: 600;
+  font-weight: 700;
+  font-family: var(--font-sans);
 }
 
 /* ── Card ─────────────────────────────────────────────── */
 .card {
-  background: var(--card);
-  border-radius: 12px;
+  background: var(--sf);
+  border-radius: 14px;
   padding: 0.9rem 1rem;
   display: flex;
   align-items: flex-start;
   gap: 0.75rem;
-  border: 1px solid transparent;
+  border: 1.5px solid var(--bd);
   transition: border-color 0.2s;
+  box-shadow: var(--shadow-sm);
 }
 
 .cardPagada {
-  border-color: var(--gn);
-  opacity: 0.8;
+  border-color: rgba(42, 157, 92, 0.35);
+  background: #f9fdf9;
 }
 
 .cardEmoji {
@@ -144,7 +149,7 @@
 }
 
 .cardNombre {
-  font-weight: 600;
+  font-weight: 700;
   font-size: 0.95rem;
   color: var(--tx);
   white-space: nowrap;
@@ -167,15 +172,16 @@
 
 .cardDiv {
   font-size: 0.72rem;
-  color: var(--tx2);
-  background: var(--bg);
+  color: var(--tx3);
+  background: var(--sf2);
   padding: 0.1rem 0.4rem;
   border-radius: 4px;
+  font-weight: 600;
 }
 
 .cardDesc {
   font-size: 0.72rem;
-  color: var(--tx2);
+  color: var(--tx3);
   font-style: italic;
 }
 
@@ -188,19 +194,19 @@
 }
 
 .badge {
-  font-size: 0.68rem;
-  padding: 0.15rem 0.5rem;
   border-radius: 20px;
-  font-weight: 600;
+  padding: 0.2rem 0.55rem;
+  font-size: 0.68rem;
+  font-weight: 700;
 }
 
 .badgeOk {
-  background: rgba(34, 197, 94, 0.15);
-  color: var(--gn);
+  background: var(--gn2);
+  color: var(--ac2);
 }
 
 .badgePend {
-  background: rgba(251, 191, 36, 0.15);
+  background: var(--am2);
   color: var(--am);
 }
 
@@ -211,8 +217,8 @@
 
 .miniPago {
   font-size: 0.65rem;
-  color: var(--tx2);
-  background: var(--bg);
+  color: var(--tx3);
+  background: var(--sf2);
   padding: 0.1rem 0.35rem;
   border-radius: 4px;
 }
@@ -238,16 +244,18 @@
 
 /* ── Gráfico ──────────────────────────────────────────── */
 .grafico {
-  background: var(--card);
-  border-radius: 12px;
+  background: var(--sf);
+  border-radius: 14px;
   padding: 1rem;
   margin: 0 16px 1rem;
+  border: 1.5px solid var(--bd);
+  box-shadow: var(--shadow-sm);
 }
 
 .graficoTitulo {
   font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--tx2);
+  font-weight: 700;
+  color: var(--tx3);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   margin-bottom: 1rem;
@@ -271,7 +279,7 @@
 
 .barraMonto {
   font-size: 0.55rem;
-  color: var(--tx2);
+  color: var(--tx3);
   margin-bottom: 0.2rem;
   text-align: center;
   min-height: 1em;
@@ -288,8 +296,8 @@
 .barra {
   width: 100%;
   background: var(--ac);
-  border-radius: 3px 3px 0 0;
-  opacity: 0.5;
+  border-radius: 4px 4px 0 0;
+  opacity: 0.4;
   min-height: 3px;
   transition: height 0.3s ease;
 }
@@ -300,9 +308,10 @@
 
 .barraLabel {
   font-size: 0.65rem;
-  color: var(--tx2);
+  color: var(--tx3);
   margin-top: 0.25rem;
   text-transform: capitalize;
+  font-weight: 500;
 }
 
 .barraLabelActual {
@@ -310,10 +319,10 @@
   font-weight: 700;
 }
 
-/* ── Desglose por suscripción ────────────────────────── */
+/* ── Desglose ────────────────────────────────────────── */
 .desglose {
   margin-top: 1rem;
-  border-top: 1px solid var(--borde, rgba(255,255,255,0.07));
+  border-top: 1px solid var(--bd);
   padding-top: 0.75rem;
   display: flex;
   flex-direction: column;
@@ -336,7 +345,7 @@
 .desgloseBarra {
   flex: 1;
   height: 5px;
-  background: var(--bg);
+  background: var(--sf2);
   border-radius: 3px;
   overflow: hidden;
 }
@@ -345,14 +354,14 @@
   height: 100%;
   background: var(--ac);
   border-radius: 3px;
-  opacity: 0.7;
+  opacity: 0.6;
   transition: width 0.3s ease;
 }
 
 .desgloseMonto {
   min-width: 60px;
   text-align: right;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--tx);
 }
 
@@ -360,7 +369,8 @@
 .overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.6);
+  background: rgba(20, 50, 25, 0.35);
+  backdrop-filter: blur(4px);
   display: flex;
   align-items: flex-end;
   justify-content: center;
@@ -368,8 +378,8 @@
 }
 
 .modal {
-  background: var(--bg);
-  border-radius: 20px 20px 0 0;
+  background: var(--sf);
+  border-radius: 24px 24px 0 0;
   padding: 1.5rem 1rem 2rem;
   width: 100%;
   max-width: 600px;
@@ -378,6 +388,7 @@
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+  box-shadow: 0 -8px 32px rgba(25, 70, 35, 0.12);
 }
 
 .modalHeader {
@@ -388,15 +399,16 @@
 
 .modalTitulo {
   font-size: 1.1rem;
-  font-weight: 700;
+  font-weight: 800;
   margin: 0;
+  color: var(--tx);
 }
 
 .btnCerrar {
   background: none;
   border: none;
   font-size: 1.2rem;
-  color: var(--tx2);
+  color: var(--tx3);
   cursor: pointer;
   padding: 0.25rem;
 }
@@ -410,26 +422,28 @@
 .emojiBtn {
   font-size: 1.4rem;
   padding: 0.35rem;
-  border-radius: 8px;
+  border-radius: 10px;
   border: 2px solid transparent;
-  background: var(--card);
+  background: var(--sf2);
   cursor: pointer;
   transition: border-color 0.15s;
 }
 
 .emojiActivo {
   border-color: var(--ac);
+  background: var(--gn2);
 }
 
 .error {
   font-size: 0.85rem;
-  color: var(--rj, #ef4444);
-  background: rgba(239, 68, 68, 0.1);
+  color: var(--rd);
+  background: var(--rd2);
   padding: 0.5rem 0.75rem;
-  border-radius: 8px;
+  border-radius: 10px;
+  font-weight: 500;
 }
 
-/* ── Toggle suscripción en ResumenForm ───────────────── */
+/* ── Toggle suscripción ──────────────────────────────── */
 .subToggleRow {
   display: flex;
   flex-direction: column;
@@ -452,11 +466,11 @@
 .subTogglePill {
   width: 36px;
   height: 20px;
-  background: var(--card);
+  background: var(--sf2);
   border-radius: 20px;
   position: relative;
   transition: background 0.2s;
-  border: 1px solid var(--borde, rgba(255,255,255,0.1));
+  border: 1px solid var(--bd2);
   flex-shrink: 0;
 }
 
@@ -467,7 +481,7 @@
   left: 2px;
   width: 14px;
   height: 14px;
-  background: var(--tx2);
+  background: var(--tx3);
   border-radius: 50%;
   transition: left 0.2s, background 0.2s;
 }
@@ -488,21 +502,23 @@
 
 .subSelect {
   width: 100%;
-  background: var(--card);
-  border: 1px solid var(--borde, rgba(255,255,255,0.1));
-  border-radius: 8px;
+  background: var(--sf);
+  border: 1.5px solid var(--bd2);
+  border-radius: var(--rs);
   padding: 0.55rem 0.75rem;
   color: var(--tx);
   font-size: 0.9rem;
+  font-family: var(--font-sans);
 }
 
 /* ── Tipo badge en card ──────────────────────────────── */
 .cardTipo {
   font-size    : 0.68rem;
-  color        : var(--tx2);
-  background   : var(--bg);
+  color        : var(--tx3);
+  background   : var(--sf2);
   padding      : 0.1rem 0.4rem;
   border-radius: 4px;
+  font-weight  : 600;
 }
 
 /* ── Grupos por tipo ─────────────────────────────────── */
@@ -517,7 +533,7 @@
 
 .grupoLabel {
   font-size     : 0.75rem;
-  font-weight   : 600;
+  font-weight   : 700;
   color         : var(--tx2);
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -530,6 +546,7 @@
   background   : var(--sf2);
   padding      : 0.1rem 0.4rem;
   border-radius: 20px;
+  font-weight  : 600;
 }
 
 .btnNuevo {
@@ -537,8 +554,9 @@
   color        : #fff;
   border       : none;
   padding      : 0.4rem 0.9rem;
-  border-radius: 8px;
+  border-radius: 10px;
   font-size    : 0.85rem;
-  font-weight  : 600;
+  font-weight  : 700;
   cursor       : pointer;
+  font-family  : var(--font-sans);
 }

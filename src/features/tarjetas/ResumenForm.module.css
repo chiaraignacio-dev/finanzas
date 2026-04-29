@@ -29,8 +29,8 @@
   border-radius: var(--rs);
   font-size    : 13px;
   line-height  : 1.5;
-  background   : rgba(59, 130, 246, 0.1);
-  border       : 1px solid rgba(59, 130, 246, 0.25);
+  background   : var(--gn2);
+  border       : 1px solid rgba(42, 157, 92, 0.25);
   color        : var(--ac2);
 }
 
@@ -59,7 +59,7 @@
   justify-content: space-between;
   padding        : 10px 12px;
   border-bottom  : 1px solid var(--bd);
-  background     : var(--sf2);
+  background     : var(--sf);
 }
 
 .consumoInfo  { flex: 1; min-width: 0; }
@@ -81,7 +81,7 @@
   display        : flex;
   justify-content: space-between;
   padding        : 10px 12px;
-  background     : var(--sf3);
+  background     : var(--sf2);
   font-size      : 12px;
   font-weight    : 600;
   color          : var(--tx2);
@@ -91,7 +91,7 @@
   margin        : 0 16px 12px;
   padding       : 14px;
   background    : var(--sf);
-  border        : 1.5px solid rgba(239, 68, 68, 0.3);
+  border        : 1.5px solid rgba(220, 53, 69, 0.25);
   border-radius : var(--r);
   display       : flex;
   flex-direction: column;
@@ -116,14 +116,14 @@
   margin       : 0 16px 8px;
   font-size    : 12px;
   color        : var(--rd);
-  background   : rgba(239, 68, 68, 0.08);
-  border       : 1px solid rgba(239, 68, 68, 0.25);
+  background   : var(--rd2);
+  border       : 1px solid rgba(220, 53, 69, 0.25);
   border-radius: var(--rs);
   padding      : 8px 12px;
 }
 
 /* Consumo compartido */
-.itemComp { background: rgba(59, 130, 246, 0.04); border-left: 2px solid var(--ac); }
+.itemComp { background: var(--gn2); border-left: 2px solid var(--ac); }
 
 .consumoMain {
   display        : flex;
@@ -142,7 +142,7 @@
 }
 
 .compToggle {
-  background   : var(--sf3);
+  background   : var(--sf2);
   border       : 1px solid var(--bd2);
   border-radius: 4px;
   padding      : 2px 6px;
@@ -150,7 +150,7 @@
   cursor       : pointer;
   opacity      : 0.5;
 }
-.compToggleOn { opacity: 1; border-color: var(--ac); background: rgba(59,130,246,0.15); }
+.compToggleOn { opacity: 1; border-color: var(--ac); background: var(--gn2); }
 
 .divSelect {
   background   : var(--sf2);
@@ -174,7 +174,7 @@
   color        : var(--tx3);
   transition   : all 0.15s;
 }
-.sharedActive { border-color: var(--ac); color: var(--ac2); background: rgba(59,130,246,0.08); }
+.sharedActive { border-color: var(--ac); color: var(--ac2); background: var(--gn2); }
 
 .divRow { display: flex; gap: 6px; }
 
@@ -189,7 +189,7 @@
   cursor       : pointer;
   transition   : all 0.15s;
 }
-.divActive { border-color: var(--ac); color: var(--ac2); background: rgba(59,130,246,0.1); }
+.divActive { border-color: var(--ac); color: var(--ac2); background: var(--gn2); }
 
 .resumenRowTotal {
   display        : flex;
@@ -207,21 +207,22 @@
   justify-content: space-between;
   font-size      : 13px;
   color          : var(--tx2);
-  background     : rgba(16, 185, 129, 0.08);
-  border         : 1px solid rgba(16, 185, 129, 0.2);
+  background     : var(--gn2);
+  border         : 1px solid rgba(42, 157, 92, 0.2);
   border-radius  : var(--rs);
   padding        : 8px 10px;
   margin-top     : 4px;
 }
 
-/* Suscripción tag inline */
 .subTag {
   display: inline-block;
   margin-left: 0.4rem;
   font-size: 0.65rem;
-  background: rgba(var(--ac-rgb, 99,102,241), 0.15);
+  background: var(--gn2);
   color: var(--ac);
   padding: 0.05rem 0.35rem;
   border-radius: 4px;
   vertical-align: middle;
 }
+
+.itemDesseleccionado { opacity: 0.5; }

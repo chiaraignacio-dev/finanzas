@@ -1,30 +1,46 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
-/* ── Design tokens ──────────────────────────────────── */
+/* ── Design tokens — Light Theme ────────────────────── */
 :root {
-  /* Nueva paleta */
-  --bg : #121709;          /* color3 — fondo principal */
-  --sf : #1a2010;          /* derivado oscuro de color3 */
-  --sf2: #1f2a14;          /* superficie secundaria */
-  --sf3: #263318;          /* superficie terciaria */
-  --bd : rgba(210,230,97,0.08);   /* color2 muy tenue */
-  --bd2: rgba(210,230,97,0.18);
+  /* Backgrounds */
+  --bg  : #f6f8f4;
+  --sf  : #ffffff;
+  --sf2 : #eef2eb;
+  --sf3 : #e4ece0;
 
-  --ac : #20db90;          /* color1 — acción principal */
-  --ac2: #2ef5a2;          /* color1 más brillante */
-  --gn : #20db90;          /* color1 — éxito/positivo */
-  --rd : #e05a5a;          /* rojo suave sobre fondo oscuro */
-  --am : #d2e661;          /* color2 — advertencia/amarillo */
-  --pu : #8fa854;          /* derivado de color2 */
+  /* Borders */
+  --bd  : rgba(50, 90, 40, 0.10);
+  --bd2 : rgba(50, 90, 40, 0.18);
 
-  --tx : #f3eae8;          /* color5 — texto principal */
-  --tx2: #c4b8b5;          /* color5 atenuado */
-  --tx3: #7c7974;          /* color4 — texto terciario */
+  /* Brand — Green */
+  --ac  : #2a9d5c;
+  --ac2 : #1e7a44;
+  --gn  : #2a9d5c;
+  --gn2 : #e8f5ee;
 
-  --r  : 14px;
-  --rs : 8px;
-  --font-sans: 'DM Sans', sans-serif;
-  --font-mono: 'DM Mono', monospace;
+  /* Semantic */
+  --rd  : #dc3545;
+  --rd2 : #fdeaea;
+  --am  : #d97706;
+  --am2 : #fef3c7;
+  --pu  : #7c3aed;
+
+  /* Text */
+  --tx  : #192b1e;
+  --tx2 : #3a5044;
+  --tx3 : #7a9485;
+
+  /* Radius */
+  --r   : 18px;
+  --rs  : 12px;
+
+  /* Fonts */
+  --font-sans: 'Plus Jakarta Sans', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 4px rgba(25, 70, 35, 0.07);
+  --shadow-md: 0 4px 14px rgba(25, 70, 35, 0.10);
 }
 
 /* ── Reset ──────────────────────────────────────────── */
@@ -50,16 +66,12 @@ html, body, #root {
   overflow : hidden;
 }
 
-/* ── Mobile (< 768px): columna única, nav abajo ─────── */
 @media (max-width: 767px) {
-  .app-root {
-    flex-direction: column;
-  }
-  .desktop-sidebar { display: none !important; }
-  .mobile-shell    { display: flex !important; flex-direction: column; flex: 1; overflow: hidden; }
+  .app-root         { flex-direction: column; }
+  .desktop-sidebar  { display: none !important; }
+  .mobile-shell     { display: flex !important; flex-direction: column; flex: 1; overflow: hidden; }
 }
 
-/* ── Desktop (≥ 768px): sidebar izquierdo ───────────── */
 @media (min-width: 768px) {
   .mobile-nav   { display: none !important; }
   .mobile-shell { display: flex !important; flex: 1; overflow: hidden; }

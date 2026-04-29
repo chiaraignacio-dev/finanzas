@@ -9,8 +9,8 @@
   display        : flex;
   justify-content: space-between;
   align-items    : center;
-  background     : rgba(59, 130, 246, 0.1);
-  border         : 1px solid rgba(59, 130, 246, 0.25);
+  background     : var(--gn2);
+  border         : 1px solid rgba(42, 157, 92, 0.25);
   border-radius  : var(--rs);
   padding        : 9px 12px;
   font-size      : 13px;
@@ -27,14 +27,14 @@
 }
 
 .alert {
-  background: rgba(59, 130, 246, 0.1);
-  border    : 1px solid rgba(59, 130, 246, 0.25);
+  background: var(--gn2);
+  border    : 1px solid rgba(42, 157, 92, 0.25);
   color     : var(--ac2);
 }
 
 .alertInfo {
-  background: rgba(59, 130, 246, 0.1);
-  border    : 1px solid rgba(59, 130, 246, 0.25);
+  background: var(--gn2);
+  border    : 1px solid rgba(42, 157, 92, 0.25);
   color     : var(--ac2);
 }
 
@@ -42,16 +42,16 @@
   padding      : 10px 13px;
   border-radius: var(--rs);
   font-size    : 13px;
-  background   : rgba(239, 68, 68, 0.1);
-  border       : 1px solid rgba(239, 68, 68, 0.25);
-  color        : #FCA5A5;
+  background   : var(--rd2);
+  border       : 1px solid rgba(220, 53, 69, 0.25);
+  color        : var(--rd);
 }
 
 .error {
   font-size    : 12px;
   color        : var(--rd);
-  background   : rgba(239, 68, 68, 0.08);
-  border       : 1px solid rgba(239, 68, 68, 0.25);
+  background   : var(--rd2);
+  border       : 1px solid rgba(220, 53, 69, 0.25);
   border-radius: var(--rs);
   padding      : 8px 12px;
 }
