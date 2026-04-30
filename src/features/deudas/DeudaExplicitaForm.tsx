@@ -71,7 +71,7 @@ export function DeudaExplicitaForm({ onDone }: Props) {
             montoTotal   : partePareja,
             origen       : 'manual',
             movimientoId : mov.id,
-            notas        : [notas, vcto ? `Vence: ${vcto}` : ''].filter(Boolean).join(' · ') || null,
+            notas        : [notas, vcto ? `Vence: ${vcto}` : ''].filter(Boolean).join(' · ') || undefined,
           });
         }
       }
