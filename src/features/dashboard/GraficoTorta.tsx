@@ -50,7 +50,6 @@ export function GraficoTorta({ modo }: Props) {
   const [total,    setTotal]          = useState(0);
   const [cargando, setCargando]       = useState(true);
   const [activo,   setActivo]         = useState<string | null>(null);
-  const [label,    setLabel]          = useState<string>('');
 
   const cargar = useCallback(async () => {
     setCargando(true);
@@ -97,7 +96,6 @@ export function GraficoTorta({ modo }: Props) {
 
       setDatos(ordenado);
       setTotal(totalCalc);
-      if (ordenado.length > 0) setLabel(ordenado[0].categoria);
     } finally {
       setCargando(false);
     }
@@ -135,8 +133,8 @@ export function GraficoTorta({ modo }: Props) {
                 fill={s.color}
                 opacity={activo && activo !== s.categoria ? 0.3 : 1}
                 className={styles.slice}
-                onMouseEnter={() => { setActivo(s.categoria); setLabel(s.categoria); }}
-                onMouseLeave={() => { setActivo(null); setLabel(datos[0]?.categoria || ''); }}
+                onMouseEnter={() => { setActivo(s.categoria);}}
+                onMouseLeave={() => { setActivo(null);}}
                 onClick    ={() => setActivo(prev => prev === s.categoria ? null : s.categoria)}
               />
             ))}
