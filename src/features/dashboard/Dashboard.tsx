@@ -9,6 +9,7 @@ import { usarSesion }         from '../../context/SesionContext';
 import { fmtK, FLAB, DESDE_MES, num } from '../../lib/utils';
 import type { Movimiento, Servicio, Meta, ResumenTarjeta, Ingreso } from '../../lib/types';
 import styles from './Dashboard.module.css';
+import { GraficoTorta } from './GraficoTorta';
 
 export function Dashboard() {
   const sesion   = usarSesion();
@@ -200,6 +201,12 @@ export function Dashboard() {
       <Card style={{ margin: '0 16px 12px', padding: '12px 16px' }}>
         {!loading && <GraficoEvolucion modo={mode} />}
         {loading   && <div className={styles.empty}>Cargando…</div>}
+      </Card>
+
+      <div className={styles.slab}>Gasto por categoría</div>
+      <Card style={{ margin: '0 16px 12px', padding: '12px 16px' }}>
+        {!loading && <GraficoTorta modo={mode} />}
+        {loading && <div className={styles.empty}>Cargando…</div>}
       </Card>
 
       {/* Metas con proyección */}

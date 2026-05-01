@@ -6,8 +6,8 @@ import type { Movimiento, Ingreso }         from '../../lib/types';
 import styles from './GraficoEvolucion.module.css';
 
 interface PuntoMes {
-  label    : string;  // "Mar"
-  mesISO   : string;  // "2025-03"
+  label    : string;
+  mesISO   : string;
   gastado  : number;
   ingresado: number;
   ahorro   : number;
@@ -41,7 +41,6 @@ function generarMeses(n = 6): { label: string; mesISO: string; desde: string; ha
     const label = d.toLocaleString('es-AR', { month: 'short' });
     const mesISO = `${anio}-${mes}`;
     const desde  = `${anio}-${mes}-01`;
-    // último día del mes
     const hasta = new Date(anio, d.getMonth() + 1, 0).toISOString().split('T')[0];
     return { label, mesISO, desde, hasta };
   });
@@ -60,15 +59,15 @@ export function GraficoEvolucion({ modo }: Props) {
       const meses = generarMeses(6);
       const primero = meses[0].desde;
 
+      // Misma lógica que Dashboard: traer movimientos e ingresos desde el primer mes
       const [movs, ingresos] = await Promise.all([
         sbGet<Movimiento>('movimientos', {
           user_id: `eq.${usuario.id}`,
-          estado : 'eq.confirmado',
           fecha  : `gte.${primero}`,
         }, 0),
         sbGet<Ingreso>('ingresos', {
-          user_id      : `eq.${usuario.id}`,
-          recibido     : 'eq.true',
+          user_id       : `eq.${usuario.id}`,
+          recibido      : `eq.true`,
           fecha_recibido: `gte.${primero}`,
         }, 0),
       ]);
@@ -79,15 +78,29 @@ export function GraficoEvolucion({ modo }: Props) {
           i.fecha_recibido && i.fecha_recibido >= desde && i.fecha_recibido <= hasta
         );
 
-        const gastado  = movsDelMes
-          .filter(m => m.tipo === 'gasto' && !m.es_ahorro)
-          .reduce((a, m) => a + num(m.mi_parte), 0);
+        // ALINEADO CON DASHBOARD:
+        // Gastado = gastos confirmados sin resumen_id + pagos de deuda confirmados
+        const gastado = movsDelMes
+          .filter(m =>
+            m.estado === 'confirmado' && !m.es_ahorro && (
+              (m.tipo === 'gasto' && !m.resumen_id) ||
+              m.tipo === 'deuda'
+            )
+          )
+          .reduce((a, m) => {
+            if (modo === 'hogar') return a + num(m.monto_total);
+            return a + num(m.mi_parte);
+          }, 0);
 
-        const ahorro   = movsDelMes
+        // Ahorro = movimientos tipo ahorro o con es_ahorro
+        const ahorro = movsDelMes
           .filter(m => m.es_ahorro || m.tipo === 'ahorro')
           .reduce((a, m) => a + num(m.mi_parte), 0);
 
+        // Ingresado = ingresos recibidos en el mes (por fecha_recibido)
         const ingresado = ingDelMes.reduce((a, i) => a + num(i.monto), 0);
+
+        // Disponible = ingresado - gastado (igual que Dashboard)
         const disponible = ingresado - gastado;
 
         return { label, mesISO, gastado, ingresado, ahorro, disponible };
@@ -109,7 +122,6 @@ export function GraficoEvolucion({ modo }: Props) {
     return <div className={styles.vacio}>Sin datos suficientes para mostrar la evolución.</div>;
   }
 
-  // ── Cálculo del SVG ─────────────────────────────────
   const W = 300; const H = 120; const PAD = { top: 10, right: 8, bottom: 20, left: 8 };
   const innerW = W - PAD.left - PAD.right;
   const innerH = H - PAD.top  - PAD.bottom;
@@ -145,7 +157,6 @@ export function GraficoEvolucion({ modo }: Props) {
     );
   }
 
-  // Mes actual stats (último punto)
   const ultimo = puntos[puntos.length - 1];
 
   return (
@@ -166,14 +177,12 @@ export function GraficoEvolucion({ modo }: Props) {
         </div>
       </div>
 
-      {/* SVG chart */}
       <div className={styles.svgWrap}>
         <svg
           viewBox={`0 0 ${W} ${H}`}
           className={styles.svg}
           onMouseLeave={() => setTooltip(null)}
         >
-          {/* Grid lines */}
           {[0.25, 0.5, 0.75, 1].map(f => (
             <line
               key={f}
@@ -183,7 +192,6 @@ export function GraficoEvolucion({ modo }: Props) {
             />
           ))}
 
-          {/* Líneas de datos */}
           {lineas.includes('gastado') && (
             <path d={toPath(puntos.map(p => p.gastado))}
               fill="none" stroke="var(--rd)" strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" />
@@ -197,18 +205,13 @@ export function GraficoEvolucion({ modo }: Props) {
               fill="none" stroke="var(--ac)" strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" />
           )}
 
-          {/* Puntos interactivos */}
           {puntos.map((p, i) => (
             <g key={p.mesISO}>
-              {/* Área invisible para hover */}
               <rect
                 x={xPos(i) - 12} y={PAD.top}
                 width={24} height={innerH}
                 fill="transparent"
-                onMouseEnter={_ => {
-                  
-                  setTooltip({ mes: p.label, x: i, y: 0 });
-                }}
+                onMouseEnter={() => setTooltip({ mes: p.label, x: i, y: 0 })}
               />
               {lineas.includes('gastado') && (
                 <circle cx={xPos(i)} cy={yPos(p.gastado)} r={2.5} fill="var(--rd)" />
@@ -219,7 +222,6 @@ export function GraficoEvolucion({ modo }: Props) {
               {lineas.includes('ahorro') && (
                 <circle cx={xPos(i)} cy={yPos(p.ahorro)} r={2.5} fill="var(--ac)" />
               )}
-              {/* Línea vertical hover */}
               {tooltip?.x === i && (
                 <line
                   x1={xPos(i)} y1={PAD.top}
@@ -230,7 +232,6 @@ export function GraficoEvolucion({ modo }: Props) {
             </g>
           ))}
 
-          {/* Labels eje X */}
           {puntos.map((p, i) => (
             <text key={p.mesISO + 'l'}
               x={xPos(i)} y={H - 4}
@@ -243,7 +244,6 @@ export function GraficoEvolucion({ modo }: Props) {
           ))}
         </svg>
 
-        {/* Tooltip */}
         {tooltip && (() => {
           const p = puntos[tooltip.x];
           return (
@@ -257,7 +257,7 @@ export function GraficoEvolucion({ modo }: Props) {
         })()}
       </div>
 
-      {/* Resumen último mes */}
+      {/* Resumen último mes — igual que Dashboard */}
       <div className={styles.resumen}>
         <div className={styles.resumenItem}>
           <span className={styles.resumenLabel}>Este mes gastado</span>

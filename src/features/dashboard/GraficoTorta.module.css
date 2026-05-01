@@ -1,0 +1,128 @@
+.wrap {
+  display       : flex;
+  flex-direction: column;
+  gap           : 0.75rem;
+}
+
+.titulo {
+  font-size     : 0.75rem;
+  font-weight   : 600;
+  color         : var(--tx3);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.contenido {
+  display    : flex;
+  align-items: flex-start;
+  gap        : 1rem;
+}
+
+/* Torta */
+.tortaWrap {
+  flex-shrink: 0;
+  width      : 160px;
+}
+
+.svg {
+  width  : 100%;
+  height : auto;
+  display: block;
+}
+
+.slice {
+  cursor    : pointer;
+  transition: opacity 0.2s, transform 0.15s;
+  transform-origin: 80px 80px;
+}
+
+.slice:hover {
+  transform: scale(1.04);
+}
+
+/* Leyenda */
+.leyenda {
+  flex          : 1;
+  display       : flex;
+  flex-direction: column;
+  gap           : 0.35rem;
+  min-width     : 0;
+}
+
+.leyItem {
+  display    : flex;
+  align-items: center;
+  gap        : 0.4rem;
+  padding    : 0.25rem 0.4rem;
+  border-radius: 6px;
+  cursor     : pointer;
+  transition : background 0.15s, opacity 0.2s;
+}
+
+.leyItem:hover { background: var(--sf2); }
+
+.leyActivo { background: var(--sf2); }
+
+.leyCuadro {
+  width        : 8px;
+  height       : 8px;
+  border-radius: 2px;
+  flex-shrink  : 0;
+}
+
+.leyCat {
+  flex      : 1;
+  font-size : 0.72rem;
+  color     : var(--tx2);
+  white-space: nowrap;
+  overflow  : hidden;
+  text-overflow: ellipsis;
+}
+
+.leyPct {
+  font-size  : 0.68rem;
+  color      : var(--tx3);
+  flex-shrink: 0;
+}
+
+.leyMonto {
+  font-size  : 0.72rem;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  color      : var(--tx);
+  flex-shrink: 0;
+  min-width  : 64px;
+  text-align : right;
+}
+
+/* Total */
+.totalRow {
+  display        : flex;
+  justify-content: space-between;
+  align-items    : center;
+  padding-top    : 0.5rem;
+  border-top     : 1px solid var(--bd);
+}
+
+.totalLabel {
+  font-size : 0.72rem;
+  color     : var(--tx3);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.totalMonto {
+  font-size  : 0.9rem;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  color      : var(--rd);
+}
+
+/* Estados */
+.cargando, .vacio {
+  font-size : 13px;
+  color     : var(--tx3);
+  padding   : 1rem 0;
+  text-align: center;
+}

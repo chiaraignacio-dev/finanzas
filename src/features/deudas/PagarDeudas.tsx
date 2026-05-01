@@ -28,8 +28,13 @@ export function PagarDeudas({ onBadge }: Props) {
   const [deudasANuestroFavor,setDeudasANuestroFavor]= useState<DeudaInterpersonal[]>([]);
   const [cargando,           setCargando]           = useState(true);
 
-  // Estado para el pago de servicio compartido
+  // Deudas interpersonales indexadas por movimiento_id para lookup rápido
+  const [deudaInterpPorMovimiento, setDeudaInterpPorMovimiento] = useState<Record<string, DeudaInterpersonal>>({});
+
+  // Estado para pregunta de pareja en servicios
   const [servicioEnPago, setServicioEnPago] = useState<string | null>(null);
+  // Estado para pregunta de pareja en deudas propias compartidas
+  const [deudaPropiaEnPago, setDeudaPropiaEnPago] = useState<string | null>(null);
 
   const cargar = useCallback(async () => {
     setCargando(true);
@@ -41,11 +46,19 @@ export function PagarDeudas({ onBadge }: Props) {
         sbGet<DeudaInterpersonal>('deudas_interpersonales', { deudor_id:   `eq.${usuario.id}`, estado: 'neq.pagado' }),
         sbGet<DeudaInterpersonal>('deudas_interpersonales', { acreedor_id: `eq.${usuario.id}`, estado: 'neq.pagado' }),
       ]);
+
+      // Indexar deudas interpersonales a favor por movimiento_id para lookup rápido
+      const interpPorMov: Record<string, DeudaInterpersonal> = {};
+      aFavor.forEach(d => {
+        if (d.movimiento_id) interpPorMov[d.movimiento_id] = d;
+      });
+
       setResumenes(resumenesBD);
       setServicios(serviciosBD);
       setDeudasPropias(deudasBD);
       setDeudasQueDebemos(queDebemos);
       setDeudasANuestroFavor(aFavor);
+      setDeudaInterpPorMovimiento(interpPorMov);
       onBadge(resumenesBD.length + serviciosBD.length + deudasBD.length + queDebemos.length);
     } finally { setCargando(false); }
   }, [usuario.id]);
@@ -57,7 +70,6 @@ export function PagarDeudas({ onBadge }: Props) {
   }
 
   // ── Pagar resumen de tarjeta ─────────────────────────
-  // El pago del resumen SÍ impacta en Gastado y Disponible (es cuando sale la plata)
   async function pagarResumen(resumen: ResumenTarjeta, montoPagado: number) {
     const saldo    = calcularSaldo(resumen.monto_total, resumen.monto_pagado);
     const efectivo = Math.min(montoPagado, saldo);
@@ -65,7 +77,6 @@ export function PagarDeudas({ onBadge }: Props) {
     const estado   = num(resumen.monto_total) - nuevoPag <= 0 ? 'pagado' : 'parcial';
     try {
       await sbPatch('resumenes_tarjeta', resumen.id, { monto_pagado: nuevoPag, estado });
-      // Este movimiento tipo 'deuda' confirmado SÍ impacta en Gastado/Disponible
       await sbPost('movimientos', {
         fecha        : obtenerFechaISO(),
         tipo         : 'deuda',
@@ -88,29 +99,17 @@ export function PagarDeudas({ onBadge }: Props) {
     } catch { mostrarToast('Error al registrar el pago', 'err'); }
   }
 
-  // ── Iniciar pago de servicio ─────────────────────────
-  function iniciarPagoServicio(srv: Servicio) {
-    setServicioEnPago(srv.id);
-  }
+  // ── Servicios ────────────────────────────────────────
+  function iniciarPagoServicio(srv: Servicio) { setServicioEnPago(srv.id); }
+  function cancelarPagoServicio() { setServicioEnPago(null); }
 
-  function cancelarPagoServicio() {
-    setServicioEnPago(null);
-  }
-
-  // ── Confirmar pago de servicio ───────────────────────
-  // Si es compartido, pregunta si la pareja ya pagó su parte
-  // Si sí → cancela la deuda interpersonal correspondiente
-  // Si no → la deuda interpersonal queda activa (aparece en Balance)
   async function confirmarPagoServicio(srv: Servicio, parejaYaPagoSuParte: boolean | null) {
     try {
-      // 1. Marcar el servicio como pagado
       await sbPatch('servicios', srv.id, {
         estado    : 'pagado',
         pagado_en : new Date().toISOString(),
         quien_pago: 'yo',
       });
-
-      // 2. Registrar el movimiento de pago (mi parte)
       await sbPost('movimientos', {
         fecha        : obtenerFechaISO(),
         tipo         : 'deuda',
@@ -129,16 +128,13 @@ export function PagarDeudas({ onBadge }: Props) {
         estado       : 'confirmado',
       });
 
-      // 3. Si es compartido, gestionar la deuda interpersonal
       if (srv.es_compartido && pareja) {
         if (parejaYaPagoSuParte) {
-          // La pareja ya transfirió → buscar y cerrar la deuda interpersonal
           const deudas = await sbGet<DeudaInterpersonal>('deudas_interpersonales', {
             acreedor_id: `eq.${usuario.id}`,
             deudor_id  : `eq.${pareja.id}`,
             estado     : 'neq.pagado',
           }, 0);
-          // Buscar la deuda del servicio correspondiente
           const deudaServicio = deudas.find(d =>
             d.descripcion.toLowerCase().includes(srv.servicio.toLowerCase())
           );
@@ -147,7 +143,6 @@ export function PagarDeudas({ onBadge }: Props) {
               monto_pagado: deudaServicio.monto_total,
               estado      : 'pagado',
             });
-            // Registrar ingreso por el cobro
             await sbPost('ingresos', {
               user_id        : usuario.id,
               descripcion    : `Cobro parte ${pareja.nombre}: ${srv.servicio}`,
@@ -161,26 +156,24 @@ export function PagarDeudas({ onBadge }: Props) {
           }
           mostrarToast(`${srv.servicio} pagado ✓ — deuda con ${pareja.nombre} saldada`);
         } else {
-          // La pareja no pagó → la deuda interpersonal queda activa en Balance
           mostrarToast(`${srv.servicio} pagado ✓ — ${pareja.nombre} te debe su parte`);
         }
       } else {
         mostrarToast(`${srv.servicio} pagado ✓`);
       }
-
-      cancelarPagoServicio();
-      cargar();
+      cancelarPagoServicio(); cargar();
     } catch { mostrarToast('Error', 'err'); }
   }
 
-  // ── Pagar deuda propia ───────────────────────────────
+  // ── Deudas propias ───────────────────────────────────
   async function pagarDeudaPropia(deuda: Movimiento, montoPagado: number) {
     const saldo    = calcularSaldo(deuda.monto_total, deuda.monto_pagado);
     const efectivo = Math.min(montoPagado, saldo);
     const nuevoPag = num(deuda.monto_pagado) + efectivo;
-    const estado   = num(deuda.monto_total) - nuevoPag <= 0 ? 'confirmado' : 'parcial';
+    const estadoNuevo = num(deuda.monto_total) - nuevoPag <= 0 ? 'confirmado' : 'parcial';
+
     try {
-      await sbPatch('movimientos', deuda.id, { monto_pagado: nuevoPag, estado });
+      await sbPatch('movimientos', deuda.id, { monto_pagado: nuevoPag, estado: estadoNuevo });
       if (efectivo < saldo) {
         await sbPost('movimientos', {
           fecha        : obtenerFechaISO(),
@@ -200,12 +193,63 @@ export function PagarDeudas({ onBadge }: Props) {
           estado       : 'confirmado',
         });
       }
-      mostrarToast(estado === 'confirmado' ? 'Deuda cancelada ✓' : 'Pago parcial ✓');
+
+      // Si era compartida y hay deuda interpersonal asociada, preguntar por la pareja
+      const deudaInterp = deudaInterpPorMovimiento[deuda.id];
+      if (deuda.es_compartido && deudaInterp && pareja) {
+        // Mostrar pregunta de pareja
+        setDeudaPropiaEnPago(null);
+        pago.cancelarPago();
+        mostrarToast(estadoNuevo === 'confirmado' ? 'Deuda cancelada ✓' : 'Pago parcial ✓');
+        cargar();
+        return;
+      }
+
+      mostrarToast(estadoNuevo === 'confirmado' ? 'Deuda cancelada ✓' : 'Pago parcial ✓');
       pago.cancelarPago(); cargar();
     } catch { mostrarToast('Error', 'err'); }
   }
 
-  // ── Pagar deuda interpersonal (soy deudor) ───────────
+  // Confirmación de si la pareja ya pagó su parte en deuda propia
+  async function confirmarPagoDeudaPropia(deuda: Movimiento, montoPagado: number, parejaYaPago: boolean) {
+    const saldo    = calcularSaldo(deuda.monto_total, deuda.monto_pagado);
+    const efectivo = Math.min(montoPagado, saldo);
+    const nuevoPag = num(deuda.monto_pagado) + efectivo;
+    const estadoNuevo = num(deuda.monto_total) - nuevoPag <= 0 ? 'confirmado' : 'parcial';
+
+    try {
+      await sbPatch('movimientos', deuda.id, { monto_pagado: nuevoPag, estado: estadoNuevo });
+
+      const deudaInterp = deudaInterpPorMovimiento[deuda.id];
+
+      if (parejaYaPago && deudaInterp && pareja) {
+        // Cerrar la deuda interpersonal y registrar el ingreso
+        await sbPatch('deudas_interpersonales', deudaInterp.id, {
+          monto_pagado: deudaInterp.monto_total,
+          estado      : 'pagado',
+        });
+        await sbPost('ingresos', {
+          user_id        : usuario.id,
+          descripcion    : `Cobro parte ${pareja.nombre}: ${deuda.descripcion}`,
+          monto          : num(deudaInterp.monto_total) - num(deudaInterp.monto_pagado),
+          tipo           : 'extra',
+          fecha_esperada : obtenerFechaISO(),
+          fecha_recibido : obtenerFechaISO(),
+          recibido       : true,
+          recurrente     : false,
+        });
+        mostrarToast(`${deuda.descripcion} pagado ✓ — deuda con ${pareja.nombre} saldada`);
+      } else {
+        mostrarToast(`${deuda.descripcion} pagado ✓ — ${pareja?.nombre} te debe su parte`);
+      }
+
+      setDeudaPropiaEnPago(null);
+      pago.cancelarPago();
+      cargar();
+    } catch { mostrarToast('Error', 'err'); }
+  }
+
+  // ── Deudas interpersonales ───────────────────────────
   async function pagarDeudaInterpersonal(deuda: DeudaInterpersonal, montoPagado: number) {
     try {
       await registrarPagoDeuda({ deudaId: deuda.id, monto: montoPagado });
@@ -215,7 +259,6 @@ export function PagarDeudas({ onBadge }: Props) {
     } catch { mostrarToast('Error', 'err'); }
   }
 
-  // ── Confirmar cobro (soy acreedor) ───────────────────
   async function confirmarCobro(deuda: DeudaInterpersonal, montoCobrado: number) {
     const saldo    = calcularSaldo(deuda.monto_total, deuda.monto_pagado);
     const efectivo = Math.min(montoCobrado, saldo);
@@ -238,7 +281,7 @@ export function PagarDeudas({ onBadge }: Props) {
     } catch { mostrarToast('Error', 'err'); }
   }
 
-  // ── Componente inline de pago ────────────────────────
+  // ── Componentes auxiliares ───────────────────────────
   function PagoInline({ id, saldo, alConfirmar }: { id: string; saldo: number; alConfirmar: (m: number) => void }) {
     return (
       <div className={styles.pagoInline}>
@@ -262,7 +305,6 @@ export function PagarDeudas({ onBadge }: Props) {
     );
   }
 
-  // ── Barra de progreso ────────────────────────────────
   function BarraProgreso({ pagado, total }: { pagado: number; total: number }) {
     const pct = total > 0 ? (pagado / total) * 100 : 0;
     return (
@@ -273,6 +315,30 @@ export function PagarDeudas({ onBadge }: Props) {
         <div className={styles.progresoEtiquetas}>
           <span style={{ color: 'var(--gn)' }}>Pagado {fmt(pagado)}</span>
           <span style={{ color: 'var(--rd)' }}>Saldo {fmt(total - pagado)}</span>
+        </div>
+      </div>
+    );
+  }
+
+  // Pregunta de pareja reutilizable
+  function PreguntaPareja({
+    nombre,
+    onSi,
+    onNo,
+    onCancelar,
+  }: {
+    nombre: string;
+    onSi: () => void;
+    onNo: () => void;
+    onCancelar: () => void;
+  }) {
+    return (
+      <div className={styles.preguntaPareja}>
+        <div className={styles.preguntaTexto}>¿{nombre} ya te pasó su parte?</div>
+        <div className={styles.preguntaBotones}>
+          <Button variant="success"   size="sm" onClick={onSi}>Sí, me pagó ✓</Button>
+          <Button variant="secondary" size="sm" onClick={onNo}>No, me debe</Button>
+          <Button variant="ghost"     size="sm" onClick={onCancelar}>Cancelar</Button>
         </div>
       </div>
     );
@@ -416,34 +482,13 @@ export function PagarDeudas({ onBadge }: Props) {
                     Vence: {new Date(s.fecha_vencimiento).toLocaleDateString('es-AR')}
                     {s.es_compartido ? ` · Compartido (tu parte: ${fmt(num(s.mi_parte))})` : ''}
                   </div>
-
-                  {/* Si estamos en modo pago de este servicio */}
                   {servicioEnPago === s.id && s.es_compartido && pareja && (
-                    <div className={styles.preguntaPareja}>
-                      <div className={styles.preguntaTexto}>
-                        ¿{pareja.nombre} ya te pasó su parte?
-                      </div>
-                      <div className={styles.preguntaBotones}>
-                        <Button
-                          variant="success" size="sm"
-                          onClick={() => confirmarPagoServicio(s, true)}
-                        >
-                          Sí, me pagó ✓
-                        </Button>
-                        <Button
-                          variant="secondary" size="sm"
-                          onClick={() => confirmarPagoServicio(s, false)}
-                        >
-                          No, me debe
-                        </Button>
-                        <Button
-                          variant="ghost" size="sm"
-                          onClick={cancelarPagoServicio}
-                        >
-                          Cancelar
-                        </Button>
-                      </div>
-                    </div>
+                    <PreguntaPareja
+                      nombre={pareja.nombre}
+                      onSi={() => confirmarPagoServicio(s, true)}
+                      onNo={() => confirmarPagoServicio(s, false)}
+                      onCancelar={cancelarPagoServicio}
+                    />
                   )}
                 </div>
                 <div className={styles.derechaServicio}>
@@ -464,18 +509,25 @@ export function PagarDeudas({ onBadge }: Props) {
         </>
       )}
 
-      {/* Otras deudas */}
+      {/* Otras deudas propias */}
       {deudasPropias.length > 0 && (
         <>
           <div className={styles.seccion}>📌 Otras deudas</div>
           {deudasPropias.map(d => {
-            const saldo = calcularSaldo(d.monto_total, d.monto_pagado);
+            const saldo        = calcularSaldo(d.monto_total, d.monto_pagado);
+            const deudaInterp  = deudaInterpPorMovimiento[d.id];
+            const esCompartida = d.es_compartido && !!deudaInterp && !!pareja;
+            const enPregunta   = deudaPropiaEnPago === d.id;
+
             return (
               <Card key={d.id} variant="pending" className={styles.cardDeuda}>
                 <div className={styles.cardEncabezado}>
                   <div>
                     <div className={styles.cardTitulo}>{d.descripcion}</div>
-                    <div className={styles.cardSubtitulo}>{d.fecha}</div>
+                    <div className={styles.cardSubtitulo}>
+                      {d.fecha}
+                      {esCompartida && pareja && ` · Compartida con ${pareja.nombre}`}
+                    </div>
                   </div>
                   <Badge variant={num(d.monto_pagado) > 0 ? 'warning' : 'danger'}>
                     {num(d.monto_pagado) > 0 ? 'Parcial' : 'Pendiente'}
@@ -486,15 +538,43 @@ export function PagarDeudas({ onBadge }: Props) {
                   <div className={styles.montoEtiqueta}>Saldo pendiente</div>
                   <div className={styles.montoValor}>{fmt(saldo)}</div>
                 </div>
-                {pago.estaPagando(d.id)
-                  ? <PagoInline id={d.id} saldo={saldo} alConfirmar={m => pagarDeudaPropia(d, m)} />
-                  : <Button variant="primary" fullWidth onClick={() => pago.iniciarPago(d.id)}>Registrar pago</Button>
-                }
+
+                {/* Pregunta de pareja si es compartida */}
+                {enPregunta && esCompartida && pareja && (
+                  <PreguntaPareja
+                    nombre={pareja.nombre}
+                    onSi={() => confirmarPagoDeudaPropia(d, num(pago.montoPago) || saldo, true)}
+                    onNo={() => confirmarPagoDeudaPropia(d, num(pago.montoPago) || saldo, false)}
+                    onCancelar={() => { setDeudaPropiaEnPago(null); pago.cancelarPago(); }}
+                  />
+                )}
+
+                {/* Flujo normal de pago */}
+                {!enPregunta && (
+                  pago.estaPagando(d.id)
+                    ? <PagoInline
+                        id={d.id}
+                        saldo={saldo}
+                        alConfirmar={m => {
+                          pago.setMontoPago(String(m));
+                          if (esCompartida) {
+                            // Guardar el monto y mostrar pregunta de pareja
+                            setDeudaPropiaEnPago(d.id);
+                          } else {
+                            pagarDeudaPropia(d, m);
+                          }
+                        }}
+                      />
+                    : <Button variant="primary" fullWidth onClick={() => pago.iniciarPago(d.id)}>
+                        Registrar pago
+                      </Button>
+                )}
               </Card>
             );
           })}
         </>
       )}
+
       <div style={{ height: 16 }} />
     </div>
   );
