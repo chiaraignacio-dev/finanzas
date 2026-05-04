@@ -81,4 +81,33 @@
   border-radius  : 50%;
   animation      : girar 0.8s linear infinite;
 }
+
+.accionesDeuda {
+  display: flex;
+  gap    : 8px;
+  width  : 100%;
+  margin-top: 8px;
+}
+
+.pagoInline {
+  display       : flex;
+  flex-direction: column;
+  gap           : 8px;
+  width         : 100%;
+  margin-top    : 8px;
+}
+
+.botonTotal {
+  background : none;
+  border     : none;
+  color      : var(--ac2);
+  font-size  : 12px;
+  cursor     : pointer;
+  text-align : center;
+  width      : 100%;
+  padding    : 4px;
+  text-decoration: underline;
+  font-family: var(--font-sans);
+}
+
 @keyframes girar { to { transform: rotate(360deg); } }

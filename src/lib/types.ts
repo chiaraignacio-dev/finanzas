@@ -173,7 +173,7 @@ export const CATEGORIAS = [
 export type Categoria = typeof CATEGORIAS[number];
 
 // ── Deudas interpersonales ─────────────────────────────
-export type EstadoDeudaInterpersonal = 'pendiente' | 'parcial' | 'pagado';
+export type EstadoDeudaInterpersonal = 'por_aceptar' | 'pendiente' | 'parcial' | 'por_confirmar' | 'pagado';
 export type OrigenDeuda = 'gasto' | 'resumen' | 'manual';
 
 export interface DeudaInterpersonal {
