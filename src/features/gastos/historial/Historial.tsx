@@ -1,17 +1,16 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Card, Badge, Button } from '../../../components/ui';
-import { PageHeader } from '../../../components/ui/PageHeader';
-import { sbGet, sbPatch } from '../../../lib/supabase';
-import { usarSesion, usarToast } from '../../../context/SesionContext';
-import { fmt, fmtK } from '../../../lib/utils';
-import type { Movimiento, Servicio } from '../../../lib/types';
-import styles from './Historial.module.css';
+import { Card, Badge, Button, Input }    from '../../../components/ui';
+import { PageHeader }                    from '../../../components/ui/PageHeader';
+import { ConfirmDialog }                 from '../../../components/ui/ConfirmDialog';
+import { MovimientoItem }                from './MovimientoItem';
+import { EditarMovimientoModal }         from './EditarMovimientoModal';
+import { sbGet, sbPatch }               from '../../../lib/supabase';
+import { usarSesion, usarToast }         from '../../../context/SesionContext';
+import { fmt, num }                      from '../../../lib/utils';
+import type { Movimiento, Servicio }     from '../../../lib/types';
+import styles                            from './Historial.module.css';
 
 interface Props { onBadge: (n: number) => void; }
-
-const ICONS: Record<string, string> = {
-  gasto: '🛒', deuda: '💳', ahorro: '🎯', ingreso: '💰', servicio: '🔌',
-};
 
 const ICONS_SRV: Record<string, string> = {
   luz: '⚡', agua: '💧', gas: '🔥', internet: '📡', expensas: '🏢',
@@ -22,50 +21,58 @@ export function Historial({ onBadge }: Props) {
   const user     = sesion.usuario;
   const allUsers = sesion.todosUsuarios;
   const { mostrar: onToast } = usarToast();
-  const [mode,      setMode]      = useState<'yo' | 'hogar'>('yo');
-  const [movs,      setMovs]      = useState<Movimiento[]>([]);
-  const [pendientes,setPendientes]= useState<Movimiento[]>([]);
-  const [servicios, setServicios] = useState<Servicio[]>([]);
-  const [loading,   setLoading]   = useState(true);
+
+  const [mode,       setMode]       = useState<'yo' | 'hogar'>('yo');
+  const [movs,       setMovs]       = useState<Movimiento[]>([]);
+  const [pendientes, setPendientes] = useState<Movimiento[]>([]);
+  const [servicios,  setServicios]  = useState<Servicio[]>([]);
+  const [loading,    setLoading]    = useState(true);
+
+  // Selección masiva
+  const [seleccion,     setSeleccion]     = useState<Set<string>>(new Set());
+  const [pagandoMasivo, setPagandoMasivo] = useState(false);
+  const [montoMasivo,   setMontoMasivo]   = useState('');
+
+  // Editar / eliminar
+  const [editando,     setEditando]     = useState<Movimiento | null>(null);
+  const [eliminandoId, setEliminandoId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      // Pendientes compartidos
       const pend = await sbGet<Movimiento>('movimientos', {
         es_compartido: 'eq.true',
         estado       : 'eq.pendiente',
         user_id      : `neq.${user.id}`,
-      });
+      }, 0);
 
-      // Servicios vencidos/por vencer
       const hoy = new Date().toISOString().split('T')[0];
-      const srv  = await sbGet<Servicio>('servicios', {
+      const srv = await sbGet<Servicio>('servicios', {
         user_id          : `eq.${user.id}`,
         estado           : 'eq.pendiente',
         fecha_vencimiento: `lte.${hoy}`,
-      });
+      }, 0);
 
       setPendientes(pend);
       setServicios(srv);
       onBadge(pend.length + srv.length);
 
-      // Movimientos según modo — incluimos comprometidos para mostrarlos en historial
       let all: Movimiento[];
       if (mode === 'yo') {
         const [mios, comp] = await Promise.all([
-          sbGet<Movimiento>('movimientos', { user_id: `eq.${user.id}`, estado: 'neq.rechazado' }),
-          sbGet<Movimiento>('movimientos', { es_compartido: 'eq.true', estado: 'eq.confirmado', user_id: `neq.${user.id}` }),
+          sbGet<Movimiento>('movimientos', { user_id: `eq.${user.id}`, estado: 'neq.rechazado' }, 0),
+          sbGet<Movimiento>('movimientos', { es_compartido: 'eq.true', estado: 'eq.confirmado', user_id: `neq.${user.id}` }, 0),
         ]);
-        // Excluimos rechazados; incluimos confirmados y comprometidos del usuario
-        const miosFiltrados = mios.filter(m => m.estado !== 'rechazado');
-        all = [...miosFiltrados, ...comp].sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime()).slice(0, 40);
+        all = [...mios.filter(m => m.estado !== 'rechazado'), ...comp]
+          .sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime())
+          .slice(0, 50);
       } else {
-        const rows = await sbGet<Movimiento>('movimientos', { es_compartido: 'eq.true', estado: 'eq.confirmado' });
+        const rows = await sbGet<Movimiento>('movimientos', { es_compartido: 'eq.true', estado: 'eq.confirmado' }, 0);
         const seen = new Set<string>();
         all = rows.filter(r => { if (seen.has(r.id)) return false; seen.add(r.id); return true; });
       }
       setMovs(all);
+      setSeleccion(new Set());
     } finally {
       setLoading(false);
     }
@@ -82,7 +89,6 @@ export function Historial({ onBadge }: Props) {
   }
 
   async function rechazar(id: string) {
-    if (!confirm('¿Rechazás este gasto?')) return;
     try {
       await sbPatch('movimientos', id, { estado: 'rechazado' });
       onToast('Rechazado');
@@ -98,11 +104,79 @@ export function Historial({ onBadge }: Props) {
     } catch { onToast('Error', 'err'); }
   }
 
+  // ── Selección masiva ─────────────────────────────────
+  function toggleSeleccion(id: string) {
+    setSeleccion(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      if (next.size === 0) setPagandoMasivo(false);
+      return next;
+    });
+  }
+
+  const movimientosSeleccionados = movs.filter(m => seleccion.has(m.id));
+  const totalSeleccionado = movimientosSeleccionados.reduce((a, m) => a + num(m.mi_parte), 0);
+
+  async function pagarMasivo() {
+    const montoPago = num(montoMasivo) || totalSeleccionado;
+    if (!montoPago || seleccion.size === 0) return;
+
+    let restante = montoPago;
+    for (const mov of movimientosSeleccionados) {
+      const saldo = num(mov.monto_total) - num(mov.monto_pagado);
+      const pagar = Math.min(restante, saldo);
+      if (pagar <= 0) continue;
+      const nuevoPagado  = num(mov.monto_pagado) + pagar;
+      const estadoNuevo  = nuevoPagado >= num(mov.monto_total) ? 'confirmado' : 'parcial';
+      await sbPatch('movimientos', mov.id, { monto_pagado: nuevoPagado, estado: estadoNuevo });
+      restante -= pagar;
+    }
+    onToast(`Pago masivo registrado ✓ — ${fmt(montoPago)}`);
+    setPagandoMasivo(false);
+    setMontoMasivo('');
+    setSeleccion(new Set());
+    load();
+  }
+
+  function handleGuardado() {
+    setEditando(null);
+    onToast('Movimiento actualizado ✓');
+    load();
+  }
+
+  async function confirmarEliminacion() {
+    if (!eliminandoId) return;
+    try {
+      await sbPatch('movimientos', eliminandoId, { estado: 'rechazado' });
+      onToast('Movimiento eliminado');
+    } catch { onToast('Error', 'err'); }
+    setEliminandoId(null);
+    load();
+  }
+
+  const esSeleccionable = (m: Movimiento) =>
+    m.user_id === user.id &&
+    (m.tipo === 'gasto' || m.tipo === 'deuda') &&
+    m.estado !== 'comprometido';
+
   return (
     <div>
+      <EditarMovimientoModal
+        movimiento={editando}
+        onCerrar={() => setEditando(null)}
+        onGuardado={handleGuardado}
+      />
+      <ConfirmDialog
+        abierto={!!eliminandoId}
+        mensaje="¿Eliminás este movimiento? Se marcará como rechazado."
+        peligroso
+        labelConfirmar="Sí, eliminar"
+        onConfirmar={confirmarEliminacion}
+        onCancelar={() => setEliminandoId(null)}
+      />
+
       <PageHeader title="Historial" subtitle={`${movs.length} movimientos`} />
 
-      {/* Toggle */}
       <div className={styles.toggle}>
         <button className={`${styles.tb} ${mode === 'yo'    ? styles.active : ''}`} onClick={() => setMode('yo')}>👤 Yo</button>
         <button className={`${styles.tb} ${mode === 'hogar' ? styles.active : ''}`} onClick={() => setMode('hogar')}>🏠 Hogar</button>
@@ -166,33 +240,61 @@ export function Historial({ onBadge }: Props) {
       <Card>
         {loading && <div className={styles.loading}><div className={styles.spin} /></div>}
         {!loading && movs.length === 0 && <div className={styles.empty}>Sin movimientos aún</div>}
-        {!loading && movs.map(r => {
-          const isMine    = r.user_id === user.id;
-          const mShow     = r.es_compartido && !isMine ? parseFloat(r.parte_contraparte || r.mi_parte) : parseFloat(r.mi_parte);
-          const esPos     = r.tipo === 'ingreso';
-          const esNeu     = r.tipo === 'ahorro';
-          const esCompr   = r.estado === 'comprometido';
-          const color     = esCompr ? 'var(--tx3)' : esPos ? 'var(--gn)' : esNeu ? 'var(--am)' : 'var(--rd)';
-          const signo     = esPos ? '+' : '-';
-          const quien     = !isMine ? ` · de ${Object.values(allUsers).find((u: any) => u.id === r.user_id)?.nombre || 'Otro'}` : '';
-
-          return (
-            <div key={r.id} className={styles.movItem} style={{ opacity: esCompr ? 0.7 : 1 }}>
-              <div className={styles.movIcon}>{ICONS[r.tipo] || '•'}</div>
-              <div className={styles.movInfo}>
-                <div className={styles.movDesc}>
-                  {r.descripcion}
-                  {r.es_compartido && <Badge variant="info" style={{ marginLeft: 4 }}>compartido</Badge>}
-                  {esCompr && <Badge variant="default" style={{ marginLeft: 4 }}>Pendiente de resumen</Badge>}
-                </div>
-                <div className={styles.movMeta}>{r.fecha} · {r.categoria || r.tipo}{quien}</div>
-              </div>
-              <div className={styles.movAmt} style={{ color }}>{signo}{fmtK(mShow)}</div>
-            </div>
-          );
-        })}
+        {!loading && movs.map(r => (
+          <MovimientoItem
+            key           ={r.id}
+            movimiento    ={r}
+            usuarioActual ={user}
+            todosUsuarios ={allUsers}
+            seleccionado  ={seleccion.has(r.id)}
+            onToggleSelect={esSeleccionable(r) ? toggleSeleccion : undefined}
+            onEditar      ={r.user_id === user.id ? setEditando : undefined}
+            onEliminar    ={r.user_id === user.id ? setEliminandoId : undefined}
+            mostrarAutor  ={mode === 'hogar'}
+          />
+        ))}
       </Card>
-      <div style={{ height: 16 }} />
+
+      {/* Footer pago masivo */}
+      {seleccion.size > 0 && (
+        <div className={styles.footerMasivo}>
+          <div className={styles.footerInfo}>
+            <span className={styles.footerCant}>{seleccion.size} seleccionado{seleccion.size > 1 ? 's' : ''}</span>
+            <span className={styles.footerTotal}>{fmt(totalSeleccionado)}</span>
+          </div>
+          {!pagandoMasivo ? (
+            <div className={styles.footerAcciones}>
+              <Button variant="primary" fullWidth onClick={() => setPagandoMasivo(true)}>
+                Pagar seleccionados
+              </Button>
+              <Button variant="secondary" size="sm" onClick={() => setSeleccion(new Set())}>
+                Cancelar
+              </Button>
+            </div>
+          ) : (
+            <div className={styles.footerPago}>
+              <Input
+                type="number"
+                placeholder={`Total: ${fmt(totalSeleccionado)}`}
+                value={montoMasivo}
+                onChange={e => setMontoMasivo(e.target.value)}
+                hint="Dejá vacío para pagar el total completo"
+                fullWidth
+              />
+              <div className={styles.footerAcciones}>
+                <Button variant="success" fullWidth onClick={pagarMasivo}>
+                  Confirmar {montoMasivo ? fmt(num(montoMasivo)) : fmt(totalSeleccionado)}
+                </Button>
+                <Button variant="secondary" size="sm" onClick={() => { setPagandoMasivo(false); setMontoMasivo(''); }}>
+                  Cancelar
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      <div style={{ height: seleccion.size > 0 ? 220 : 16 }} />
     </div>
   );
 }

@@ -28,7 +28,7 @@ function esCobradoAFinDeMes(fechaISO: string): boolean {
 
 // Devuelve el 1ro del mes siguiente a una fecha ISO
 function primeroDiaMesSiguiente(fechaISO: string): string {
-  const fecha   = new Date(fechaISO + 'T00:00:00');
+  const fecha     = new Date(fechaISO + 'T00:00:00');
   const siguiente = new Date(fecha.getFullYear(), fecha.getMonth() + 1, 1);
   return siguiente.toISOString().split('T')[0];
 }
@@ -39,29 +39,23 @@ export function IngresoForm({ onDone }: Props) {
   const [monto,    setMonto]    = useState('');
   const [tipo,     setTipo]     = useState('sueldo');
   const [recibido, setRecibido] = useState('si');
-  const [fechaEsp, setFechaEsp] = useState(obtenerFechaISO());
+  const [fechaEsp, setFechaEsp] = useState(() => obtenerFechaISO());
   const [notas,    setNotas]    = useState('');
   const [cargando, setCargando] = useState(false);
   const [error,    setError]    = useState('');
 
   const montoNum = num(monto);
 
-  // Determina la fecha_recibido real a usar al guardar
-  // Para sueldos/quincenas cobrados a fin de mes → usar el 1ro del mes siguiente
+  const esSueldoOQuincena = tipo === 'sueldo' || tipo === 'quincena';
+  const mostrarAviso      = recibido === 'si' && esSueldoOQuincena && esCobradoAFinDeMes(fechaEsp);
+
   function calcularFechaRecibido(): string {
     if (recibido !== 'si') return obtenerFechaISO();
-    const esSueldoOQuincena = tipo === 'sueldo' || tipo === 'quincena';
     if (esSueldoOQuincena && esCobradoAFinDeMes(fechaEsp)) {
       return primeroDiaMesSiguiente(fechaEsp);
     }
     return fechaEsp;
   }
-
-  const fechaRecibidoReal = recibido === 'si' ? calcularFechaRecibido() : null;
-  const mostrarAviso =
-    recibido === 'si' &&
-    (tipo === 'sueldo' || tipo === 'quincena') &&
-    esCobradoAFinDeMes(fechaEsp);
 
   async function guardar() {
     if (!desc || !montoNum) { setError('Completá descripción y monto'); return; }
@@ -73,7 +67,7 @@ export function IngresoForm({ onDone }: Props) {
         monto          : montoNum,
         tipo,
         fecha_esperada : fechaEsp || null,
-        fecha_recibido : fechaRecibidoReal,
+        fecha_recibido : recibido === 'si' ? calcularFechaRecibido() : null,
         recibido       : recibido === 'si',
         recurrente     : false,
         notas          : notas || null,
@@ -86,44 +80,12 @@ export function IngresoForm({ onDone }: Props) {
 
   return (
     <Card className={styles.card}>
-      <Input
-        label="Descripción *"
-        placeholder="Sueldo abril, bono, venta…"
-        value={desc}
-        onChange={e => setDesc(e.target.value)}
-        fullWidth
-      />
-      <Select
-        label="Tipo"
-        options={OPCIONES_TIPO}
-        value={tipo}
-        onChange={e => setTipo(e.target.value)}
-        fullWidth
-      />
-      <Input
-        label="Monto ($) *"
-        type="number"
-        placeholder="0"
-        value={monto}
-        onChange={e => setMonto(e.target.value)}
-        fullWidth
-      />
-      <Input
-        label="Fecha de cobro"
-        type="date"
-        value={fechaEsp}
-        onChange={e => setFechaEsp(e.target.value)}
-        fullWidth
-      />
-      <RadioGroup
-        name="recibido"
-        label="¿Ya lo recibiste? *"
-        options={OPCIONES_RECIBIDO}
-        value={recibido}
-        onChange={setRecibido}
-      />
+      <Input label="Descripción *" placeholder="Sueldo abril, bono, venta…" value={desc} onChange={e => setDesc(e.target.value)} fullWidth />
+      <Select label="Tipo" options={OPCIONES_TIPO} value={tipo} onChange={e => setTipo(e.target.value)} fullWidth />
+      <Input label="Monto ($) *" type="number" placeholder="0" value={monto} onChange={e => setMonto(e.target.value)} fullWidth />
+      <Input label="Fecha de cobro" type="date" value={fechaEsp} onChange={e => setFechaEsp(e.target.value)} fullWidth />
+      <RadioGroup name="recibido" label="¿Ya lo recibiste? *" options={OPCIONES_RECIBIDO} value={recibido} onChange={setRecibido} />
 
-      {/* Aviso automático para sueldos cobrados a fin de mes */}
       {mostrarAviso && (
         <div className={styles.alertaOk}>
           📅 Cobrado a fin de mes — se imputará al <strong>1 de {
@@ -132,7 +94,6 @@ export function IngresoForm({ onDone }: Props) {
           }</strong> para que impacte en el mes correcto.
         </div>
       )}
-
       {!mostrarAviso && recibido === 'si' && (
         <div className={styles.alertaOk}>✅ Se sumará al disponible inmediatamente.</div>
       )}
@@ -140,13 +101,7 @@ export function IngresoForm({ onDone }: Props) {
         <div className={styles.alertaInfo}>⏳ No impacta hasta que confirmes el cobro.</div>
       )}
 
-      <Input
-        label="Notas"
-        placeholder="Opcional…"
-        value={notas}
-        onChange={e => setNotas(e.target.value)}
-        fullWidth
-      />
+      <Input label="Notas" placeholder="Opcional…" value={notas} onChange={e => setNotas(e.target.value)} fullWidth />
       {error && <div className={styles.error}>{error}</div>}
       <Button variant="primary" fullWidth loading={cargando} onClick={guardar}>
         Registrar ingreso

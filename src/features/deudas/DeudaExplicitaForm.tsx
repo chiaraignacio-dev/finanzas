@@ -16,7 +16,6 @@ const OPCIONES_DIVISION = [
 ];
 
 export function DeudaExplicitaForm({ onDone }: Props) {
-  // FIX 1: agregar pareja al destructuring
   const { usuario, proporcion, pareja } = usarSesion();
   const [desc,     setDesc]     = useState('');
   const [total,    setTotal]    = useState('');
@@ -37,7 +36,7 @@ export function DeudaExplicitaForm({ onDone }: Props) {
     if (yaPagadoNum > totalNum)   { setError('Lo ya pagado no puede superar el total'); return; }
     setError(''); setCargando(true);
     try {
-      // FIX 2: estado siempre 'pendiente' cuando hay saldo, 'confirmado' solo si está saldado
+      // Estado siempre 'pendiente' cuando hay saldo — nunca 'confirmado' hasta que se pague
       const estadoMovimiento = saldoDeuda > 0 ? 'pendiente' : 'confirmado';
 
       const mov = await sbPost<{ id: string }>('movimientos', {
@@ -60,7 +59,7 @@ export function DeudaExplicitaForm({ onDone }: Props) {
         estado               : estadoMovimiento,
       });
 
-      // FIX 3: crear deuda interpersonal si es compartida y hay saldo pendiente de la pareja
+      // Crear deuda interpersonal automáticamente si es compartida
       if (division !== 'personal' && saldoDeuda > 0 && pareja) {
         const partePareja = Math.round(saldoDeuda - miParte);
         if (partePareja > 0) {

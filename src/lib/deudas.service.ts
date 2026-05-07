@@ -5,7 +5,7 @@ import { obtenerFechaISO, partePorDiv } from './utils';
 import type { DeudaInterpersonal, PagoDeudaInterpersonal } from './types';
 
 // ── Crear deuda interpersonal ────────────────────────
-// Por defecto arranca en 'por_aceptar' para que el deudor la acepte primero
+// Arranca en 'por_aceptar' para que el deudor la acepte primero
 export async function crearDeudaInterpersonal(params: {
   acreedorId  : string;
   deudorId    : string;
@@ -22,7 +22,7 @@ export async function crearDeudaInterpersonal(params: {
     descripcion  : params.descripcion,
     monto_total  : params.montoTotal,
     monto_pagado : 0,
-    estado       : 'por_aceptar',   // ← deudor debe aceptar antes de que impacte
+    estado       : 'por_aceptar',
     origen       : params.origen,
     resumen_id   : params.resumenId    ?? null,
     movimiento_id: params.movimientoId ?? null,
@@ -37,7 +37,15 @@ export async function aceptarDeuda(deudaId: string): Promise<void> {
   });
 }
 
-// ── El deudor declara que pagó (parcial o total) ─────
+// ── El deudor rechaza la deuda ───────────────────────
+export async function rechazarDeuda(deudaId: string): Promise<void> {
+  await sbPatch<DeudaInterpersonal>('deudas_interpersonales', deudaId, {
+    estado: 'pagado',
+    notas : 'Rechazada por el deudor',
+  });
+}
+
+// ── El deudor declara que pagó ───────────────────────
 // Crea el registro en pagos_deuda_interpersonal con confirmado=false
 // y pasa la deuda a 'por_confirmar' para que el acreedor lo valide
 export async function declararPagoDeuda(params: {
@@ -54,7 +62,6 @@ export async function declararPagoDeuda(params: {
   const saldo         = parseFloat(deuda.monto_total) - parseFloat(deuda.monto_pagado);
   const montoEfectivo = Math.min(params.monto, saldo);
 
-  // Registrar pago pendiente de confirmación
   await sbPost<PagoDeudaInterpersonal>('pagos_deuda_interpersonal', {
     deuda_id  : params.deudaId,
     monto     : montoEfectivo,
@@ -63,7 +70,6 @@ export async function declararPagoDeuda(params: {
     notas     : params.notas ?? null,
   });
 
-  // Pasar la deuda a 'por_confirmar'
   await sbPatch<DeudaInterpersonal>('deudas_interpersonales', params.deudaId, {
     estado: 'por_confirmar',
   });
@@ -71,9 +77,9 @@ export async function declararPagoDeuda(params: {
 
 // ── El acreedor confirma que recibió el pago ─────────
 export async function confirmarPagoRecibido(params: {
-  deudaId : string;
-  pagoId  : string;
-  monto   : number;
+  deudaId   : string;
+  pagoId    : string;
+  monto     : number;
   acreedorId: string;
 }): Promise<void> {
   const deudas = await sbGet<DeudaInterpersonal>('deudas_interpersonales', {
@@ -83,21 +89,18 @@ export async function confirmarPagoRecibido(params: {
 
   const deuda      = deudas[0];
   const nuevoPag   = parseFloat(deuda.monto_pagado) + params.monto;
-  const nuevoSaldo = parseFloat(deuda.monto_total) - nuevoPag;
+  const nuevoSaldo = parseFloat(deuda.monto_total)  - nuevoPag;
   const nuevoEstado = nuevoSaldo <= 0 ? 'pagado' : 'parcial';
 
-  // Marcar el pago como confirmado
   await sbPatch<PagoDeudaInterpersonal>('pagos_deuda_interpersonal', params.pagoId, {
     confirmado: true,
   });
 
-  // Actualizar la deuda
   await sbPatch<DeudaInterpersonal>('deudas_interpersonales', params.deudaId, {
     monto_pagado: nuevoPag,
     estado      : nuevoEstado,
   });
 
-  // Registrar ingreso en la cuenta del acreedor
   await sbPost('ingresos', {
     user_id        : params.acreedorId,
     descripcion    : `Cobro confirmado: ${deuda.descripcion}`,
@@ -110,15 +113,7 @@ export async function confirmarPagoRecibido(params: {
   });
 }
 
-// ── Rechazar deuda (deudor no está de acuerdo) ───────
-export async function rechazarDeuda(deudaId: string): Promise<void> {
-  await sbPatch<DeudaInterpersonal>('deudas_interpersonales', deudaId, {
-    estado: 'pagado', // la descartamos del balance
-    notas : 'Rechazada por el deudor',
-  });
-}
-
-// ── Legacy: usado por PagarDeudas para cobros directos ─
+// ── Legacy alias ─────────────────────────────────────
 /** @deprecated Usar declararPagoDeuda + confirmarPagoRecibido */
 export async function registrarPagoDeuda(params: {
   deudaId: string;

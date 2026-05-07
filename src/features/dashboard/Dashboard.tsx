@@ -6,7 +6,7 @@ import { GraficoEvolucion }   from './GraficoEvolucion';
 import { ProyeccionMeta }     from './ProyeccionMeta';
 import { sbGet }              from '../../lib/supabase';
 import { usarSesion }         from '../../context/SesionContext';
-import { fmtK, FLAB, DESDE_MES, num } from '../../lib/utils';
+import { fmtK, obtenerFechaLab, obtenerDesdeMes, num } from '../../lib/utils';
 import type { Movimiento, Servicio, Meta, ResumenTarjeta, Ingreso } from '../../lib/types';
 import styles from './Dashboard.module.css';
 import { GraficoTorta } from './GraficoTorta';
@@ -27,6 +27,8 @@ export function Dashboard() {
   const [reloadKey, setReloadKey] = useState(0);
 
   const load = useCallback(async () => {
+    // Calcular fechas frescas en cada ejecución (evita stale values)
+    const desdeMes = obtenerDesdeMes();
     setLoading(true);
     try {
       let ingTotal = 0;
@@ -36,28 +38,30 @@ export function Dashboard() {
         const ingresosRecibidos = await sbGet<Ingreso>('ingresos', {
           user_id       : `eq.${user.id}`,
           recibido      : 'eq.true',
-          fecha_recibido: `gte.${DESDE_MES}`,
-        });
+          fecha_recibido: `gte.${desdeMes}`,
+        }, 0);
         ingTotal = ingresosRecibidos.reduce((a, i) => a + num(i.monto), 0);
 
         const [mios, comp] = await Promise.all([
-          sbGet<Movimiento>('movimientos', { user_id: `eq.${user.id}`, fecha: `gte.${DESDE_MES}` }),
+          // Traer todos los movimientos del mes del usuario (confirmados + comprometidos)
+          sbGet<Movimiento>('movimientos', { user_id: `eq.${user.id}`, fecha: `gte.${desdeMes}` }, 0),
+          // Compartidos confirmados de la pareja del mes
           sbGet<Movimiento>('movimientos', {
             es_compartido: 'eq.true',
             estado       : 'eq.confirmado',
             user_id      : `neq.${user.id}`,
-            fecha        : `gte.${DESDE_MES}`,
-          }),
+            fecha        : `gte.${desdeMes}`,
+          }, 0),
         ]);
         rows = [...mios, ...comp];
       } else {
         const todosIngresos = await sbGet<Ingreso>('ingresos', {
           recibido      : 'eq.true',
-          fecha_recibido: `gte.${DESDE_MES}`,
-        });
+          fecha_recibido: `gte.${desdeMes}`,
+        }, 0);
         ingTotal = todosIngresos.reduce((a, i) => a + num(i.monto), 0);
 
-        const all = await sbGet<Movimiento>('movimientos', { fecha: `gte.${DESDE_MES}` });
+        const all = await sbGet<Movimiento>('movimientos', { fecha: `gte.${desdeMes}` }, 0);
         const seen = new Set<string>();
         rows = all.filter(r => {
           if (r.es_compartido) { if (seen.has(r.id)) return false; seen.add(r.id); }
@@ -66,16 +70,13 @@ export function Dashboard() {
       }
 
       // ── Gastos confirmados que SÍ impactan en Disponible ──────────────────
-      // Excluye:
-      //   - comprometidos (tarjeta sin resumen aún)
-      //   - movimientos vinculados a un resumen de tarjeta (son los consumos del
-      //     detalle; el impacto real ocurre cuando se registra el PAGO del resumen)
+      // Excluye comprometidos y movimientos vinculados a resumen de tarjeta
       const gasTotal = rows
         .filter(r =>
           r.tipo === 'gasto' &&
           !r.es_ahorro &&
           r.estado === 'confirmado' &&
-          !r.resumen_id          // excluir consumos de resumen — solo el pago cuenta
+          !r.resumen_id
         )
         .reduce((acc, r) => {
           if (mode === 'hogar') return acc + num(r.monto_total);
@@ -87,19 +88,33 @@ export function Dashboard() {
         }, 0);
 
       // ── Pagos de deudas (tarjetas, servicios, etc.) ───────────────────────
-      // Estos SÍ impactan: cuando pagás el resumen, ese movimiento tipo 'deuda'
-      // confirmado sin resumen_id representa la salida real de dinero
       const pagosDeuda = rows
         .filter(r => r.tipo === 'deuda' && r.estado === 'confirmado')
         .reduce((acc, r) => acc + num(r.mi_parte), 0);
 
-      // ── Gastos comprometidos (tarjeta sin cerrar) ─────────────────────────
-      const enTarjetaTotal = rows
-        .filter(r =>
-          r.tipo === 'gasto' &&
-          !r.es_ahorro &&
-          r.estado === 'comprometido'
-        )
+      // ── Gastos comprometidos en tarjeta SIN CERRAR ────────────────────────
+      // IMPORTANTE: los comprometidos pueden tener fecha futura (próximo vencimiento
+      // del resumen). Se consultan por separado SIN filtro de fecha para capturar
+      // todos los gastos pendientes de la tarjeta actual, sin importar su fecha asignada.
+      const comprometidosQuery = mode === 'yo'
+        ? sbGet<Movimiento>('movimientos', {
+            user_id: `eq.${user.id}`,
+            tipo   : 'eq.gasto',
+            estado : 'eq.comprometido',
+          }, 0)
+        : sbGet<Movimiento>('movimientos', {
+            tipo  : 'eq.gasto',
+            estado: 'eq.comprometido',
+          }, 0);
+
+      const comprometidos = await comprometidosQuery;
+      const seenComp = new Set<string>();
+      const comprometidosFiltrados = mode === 'hogar'
+        ? comprometidos.filter(r => { if (seenComp.has(r.id)) return false; seenComp.add(r.id); return true; })
+        : comprometidos;
+
+      const enTarjetaTotal = comprometidosFiltrados
+        .filter(r => !r.es_ahorro)
         .reduce((acc, r) => {
           if (mode === 'hogar') return acc + num(r.monto_total);
           const esMio = String(r.user_id) === String(user.id);
@@ -110,18 +125,18 @@ export function Dashboard() {
         }, 0);
 
       const [srv, resumenes, metasData, ahorrosData] = await Promise.all([
-        sbGet<Servicio>('servicios',       { user_id: `eq.${user.id}`, estado: 'eq.pendiente' }),
+        sbGet<Servicio>('servicios',       { user_id: `eq.${user.id}`, estado: 'eq.pendiente' }, 0),
         sbGet<ResumenTarjeta>('resumenes_tarjeta', {
           user_id   : `eq.${user.id}`,
           estado    : 'neq.pagado',
           es_vigente: 'eq.true',
-        }),
+        }, 0),
         sbGet<Meta>('metas',     { user_id: `eq.${user.id}`, activa: 'eq.true' }, 30_000),
         sbGet<Movimiento>('movimientos', { user_id: `eq.${user.id}` }, 0),
       ]);
 
       const hoy    = new Date().toISOString().split('T')[0];
-      const mesMes = DESDE_MES.substring(0, 7);
+      const mesMes = desdeMes.substring(0, 7);
 
       // Falta pagar = servicios pendientes del mes + saldo de tarjetas vigentes
       const srvP  = srv
@@ -154,7 +169,7 @@ export function Dashboard() {
 
   return (
     <div>
-      <PageHeader title="Dashboard" subtitle={FLAB} />
+      <PageHeader title="Dashboard" subtitle={obtenerFechaLab()} />
 
       <IngresosPendientes
         user   ={user}

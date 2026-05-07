@@ -1,9 +1,7 @@
-import { useEffect, useState, useCallback } from 'react';
-import { sbGet }                            from '../../lib/supabase';
-import { usarSesion }                       from '../../context/SesionContext';
-import { fmt, num }                         from '../../lib/utils';
-import type { Movimiento, Ingreso }         from '../../lib/types';
-import styles from './GraficoEvolucion.module.css';
+import { useState, useMemo }          from 'react';
+import { fmt, num }                   from '../../lib/utils';
+import type { Movimiento, Ingreso }   from '../../lib/types';
+import styles                         from './GraficoEvolucion.module.css';
 
 interface PuntoMes {
   label    : string;
@@ -14,8 +12,33 @@ interface PuntoMes {
   disponible: number;
 }
 
+/**
+ * GraficoEvolucion — líneas de evolución de los últimos 6 meses.
+ *
+ * FUENTE DE DATOS: recibe movimientos e ingresos históricos ya cargados
+ * desde Dashboard. No hace queries propias. Usa exactamente la misma
+ * lógica de cálculo que las tarjetas del Dashboard:
+ *
+ * GASTADO (línea roja):
+ *   movimientos donde:
+ *   - estado = 'confirmado'
+ *   - es_ahorro = false
+ *   - (tipo = 'gasto' AND resumen_id IS NULL) OR tipo = 'deuda'
+ *   Valor: mi_parte (modo 'yo') o monto_total (modo 'hogar')
+ *
+ * DISPONIBLE (línea verde):
+ *   ingresos.recibido = true, agrupados por fecha_recibido
+ *   menos Gastado del mismo mes
+ *
+ * AHORRADO (línea azul):
+ *   movimientos donde es_ahorro = true OR tipo = 'ahorro'
+ *   Valor: mi_parte
+ */
 interface Props {
-  modo: 'yo' | 'hogar';
+  movimientos: Movimiento[];   // todos los movs del usuario desde hace 6 meses
+  ingresos   : Ingreso[];      // todos los ingresos recibidos desde hace 6 meses
+  modo       : 'yo' | 'hogar';
+  meses      : { label: string; mesISO: string; desde: string; hasta: string }[];
 }
 
 type LineaActiva = 'gastado' | 'disponible' | 'ahorro';
@@ -25,102 +48,54 @@ const COLORES: Record<LineaActiva, string> = {
   disponible: 'var(--gn)',
   ahorro    : 'var(--ac)',
 };
-
 const LABELS: Record<LineaActiva, string> = {
   gastado   : 'Gastado',
   disponible: 'Disponible',
   ahorro    : 'Ahorrado',
 };
 
-function generarMeses(n = 6): { label: string; mesISO: string; desde: string; hasta: string }[] {
-  const hoy = new Date();
-  return Array.from({ length: n }, (_, i) => {
-    const d = new Date(hoy.getFullYear(), hoy.getMonth() - (n - 1 - i), 1);
-    const anio = d.getFullYear();
-    const mes  = String(d.getMonth() + 1).padStart(2, '0');
-    const label = d.toLocaleString('es-AR', { month: 'short' });
-    const mesISO = `${anio}-${mes}`;
-    const desde  = `${anio}-${mes}-01`;
-    const hasta = new Date(anio, d.getMonth() + 1, 0).toISOString().split('T')[0];
-    return { label, mesISO, desde, hasta };
-  });
-}
+export function GraficoEvolucion({ movimientos, ingresos, modo, meses }: Props) {
+  const [lineas,  setLineas]  = useState<LineaActiva[]>(['gastado', 'disponible']);
+  const [tooltip, setTooltip] = useState<{ x: number } | null>(null);
 
-export function GraficoEvolucion({ modo }: Props) {
-  const { usuario }                     = usarSesion();
-  const [puntos,  setPuntos]            = useState<PuntoMes[]>([]);
-  const [cargando,setCargando]          = useState(true);
-  const [lineas,  setLineas]            = useState<LineaActiva[]>(['gastado', 'disponible']);
-  const [tooltip, setTooltip]           = useState<{ mes: string; x: number; y: number } | null>(null);
+  const puntos: PuntoMes[] = useMemo(() => {
+    return meses.map(({ label, mesISO, desde, hasta }) => {
+      const movsDelMes = movimientos.filter(m => m.fecha >= desde && m.fecha <= hasta);
+      const ingDelMes  = ingresos.filter(i =>
+        i.fecha_recibido && i.fecha_recibido >= desde && i.fecha_recibido <= hasta
+      );
 
-  const cargar = useCallback(async () => {
-    setCargando(true);
-    try {
-      const meses = generarMeses(6);
-      const primero = meses[0].desde;
-
-      // Misma lógica que Dashboard: traer movimientos e ingresos desde el primer mes
-      const [movs, ingresos] = await Promise.all([
-        sbGet<Movimiento>('movimientos', {
-          user_id: `eq.${usuario.id}`,
-          fecha  : `gte.${primero}`,
-        }, 0),
-        sbGet<Ingreso>('ingresos', {
-          user_id       : `eq.${usuario.id}`,
-          recibido      : `eq.true`,
-          fecha_recibido: `gte.${primero}`,
-        }, 0),
-      ]);
-
-      const resultado: PuntoMes[] = meses.map(({ label, mesISO, desde, hasta }) => {
-        const movsDelMes = movs.filter(m => m.fecha >= desde && m.fecha <= hasta);
-        const ingDelMes  = ingresos.filter(i =>
-          i.fecha_recibido && i.fecha_recibido >= desde && i.fecha_recibido <= hasta
-        );
-
-        // ALINEADO CON DASHBOARD:
-        // Gastado = gastos confirmados sin resumen_id + pagos de deuda confirmados
-        const gastado = movsDelMes
-          .filter(m =>
-            m.estado === 'confirmado' && !m.es_ahorro && (
-              (m.tipo === 'gasto' && !m.resumen_id) ||
-              m.tipo === 'deuda'
-            )
+      // Gastado — misma lógica que Dashboard
+      const gastado = movsDelMes
+        .filter(m =>
+          m.estado === 'confirmado' &&
+          !m.es_ahorro && (
+            (m.tipo === 'gasto' && !m.resumen_id) ||
+            m.tipo === 'deuda'
           )
-          .reduce((a, m) => {
-            if (modo === 'hogar') return a + num(m.monto_total);
-            return a + num(m.mi_parte);
-          }, 0);
+        )
+        .reduce((a, m) => {
+          if (modo === 'hogar') return a + num(m.monto_total);
+          return a + num(m.mi_parte);
+        }, 0);
 
-        // Ahorro = movimientos tipo ahorro o con es_ahorro
-        const ahorro = movsDelMes
-          .filter(m => m.es_ahorro || m.tipo === 'ahorro')
-          .reduce((a, m) => a + num(m.mi_parte), 0);
+      // Ahorro — misma lógica que Dashboard
+      const ahorro = movsDelMes
+        .filter(m => m.es_ahorro || m.tipo === 'ahorro')
+        .reduce((a, m) => a + num(m.mi_parte), 0);
 
-        // Ingresado = ingresos recibidos en el mes (por fecha_recibido)
-        const ingresado = ingDelMes.reduce((a, i) => a + num(i.monto), 0);
+      // Ingresado — misma lógica que Dashboard (por fecha_recibido)
+      const ingresado = ingDelMes.reduce((a, i) => a + num(i.monto), 0);
 
-        // Disponible = ingresado - gastado (igual que Dashboard)
-        const disponible = ingresado - gastado;
+      // Disponible = ingresado - gastado
+      const disponible = ingresado - gastado;
 
-        return { label, mesISO, gastado, ingresado, ahorro, disponible };
-      });
+      return { label, mesISO, gastado, ingresado, ahorro, disponible };
+    });
+  }, [movimientos, ingresos, modo, meses]);
 
-      setPuntos(resultado);
-    } finally {
-      setCargando(false);
-    }
-  }, [usuario.id, modo]);
-
-  useEffect(() => { cargar(); }, [cargar]);
-
-  if (cargando) {
-    return <div className={styles.cargando}>Cargando evolución…</div>;
-  }
-
-  if (puntos.every(p => p.gastado === 0 && p.ingresado === 0)) {
-    return <div className={styles.vacio}>Sin datos suficientes para mostrar la evolución.</div>;
-  }
+  const sinDatos = puntos.every(p => p.gastado === 0 && p.ingresado === 0);
+  if (sinDatos) return <div className={styles.vacio}>Sin datos suficientes para mostrar la evolución.</div>;
 
   const W = 300; const H = 120; const PAD = { top: 10, right: 8, bottom: 20, left: 8 };
   const innerW = W - PAD.left - PAD.right;
@@ -137,23 +112,16 @@ export function GraficoEvolucion({ modo }: Props) {
     return vals;
   };
 
-  const allVals = getAllVals();
-  const maxVal  = Math.max(...allVals, 1);
-
+  const maxVal = Math.max(...getAllVals(), 1);
   function xPos(i: number) { return PAD.left + (i / (n - 1)) * innerW; }
   function yPos(v: number) { return PAD.top + innerH - (Math.max(0, v) / maxVal) * innerH; }
-
   function toPath(vals: number[]): string {
-    return vals
-      .map((v, i) => `${i === 0 ? 'M' : 'L'}${xPos(i).toFixed(1)},${yPos(v).toFixed(1)}`)
-      .join(' ');
+    return vals.map((v, i) => `${i === 0 ? 'M' : 'L'}${xPos(i).toFixed(1)},${yPos(v).toFixed(1)}`).join(' ');
   }
-
   function toggleLinea(l: LineaActiva) {
-    setLineas(prev =>
-      prev.includes(l)
-        ? prev.length > 1 ? prev.filter(x => x !== l) : prev
-        : [...prev, l]
+    setLineas(prev => prev.includes(l)
+      ? prev.length > 1 ? prev.filter(x => x !== l) : prev
+      : [...prev, l]
     );
   }
 
@@ -178,20 +146,14 @@ export function GraficoEvolucion({ modo }: Props) {
       </div>
 
       <div className={styles.svgWrap}>
-        <svg
-          viewBox={`0 0 ${W} ${H}`}
-          className={styles.svg}
-          onMouseLeave={() => setTooltip(null)}
-        >
+        <svg viewBox={`0 0 ${W} ${H}`} className={styles.svg} onMouseLeave={() => setTooltip(null)}>
           {[0.25, 0.5, 0.75, 1].map(f => (
-            <line
-              key={f}
+            <line key={f}
               x1={PAD.left} y1={PAD.top + innerH * (1 - f)}
               x2={W - PAD.right} y2={PAD.top + innerH * (1 - f)}
               stroke="var(--bd)" strokeWidth={0.5}
             />
           ))}
-
           {lineas.includes('gastado') && (
             <path d={toPath(puntos.map(p => p.gastado))}
               fill="none" stroke="var(--rd)" strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" />
@@ -204,38 +166,22 @@ export function GraficoEvolucion({ modo }: Props) {
             <path d={toPath(puntos.map(p => p.ahorro))}
               fill="none" stroke="var(--ac)" strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" />
           )}
-
           {puntos.map((p, i) => (
             <g key={p.mesISO}>
-              <rect
-                x={xPos(i) - 12} y={PAD.top}
-                width={24} height={innerH}
-                fill="transparent"
-                onMouseEnter={() => setTooltip({ mes: p.label, x: i, y: 0 })}
-              />
-              {lineas.includes('gastado') && (
-                <circle cx={xPos(i)} cy={yPos(p.gastado)} r={2.5} fill="var(--rd)" />
-              )}
-              {lineas.includes('disponible') && (
-                <circle cx={xPos(i)} cy={yPos(Math.max(0, p.disponible))} r={2.5} fill="var(--gn)" />
-              )}
-              {lineas.includes('ahorro') && (
-                <circle cx={xPos(i)} cy={yPos(p.ahorro)} r={2.5} fill="var(--ac)" />
-              )}
+              <rect x={xPos(i) - 12} y={PAD.top} width={24} height={innerH}
+                fill="transparent" onMouseEnter={() => setTooltip({ x: i })} />
+              {lineas.includes('gastado') && <circle cx={xPos(i)} cy={yPos(p.gastado)} r={2.5} fill="var(--rd)" />}
+              {lineas.includes('disponible') && <circle cx={xPos(i)} cy={yPos(Math.max(0, p.disponible))} r={2.5} fill="var(--gn)" />}
+              {lineas.includes('ahorro') && <circle cx={xPos(i)} cy={yPos(p.ahorro)} r={2.5} fill="var(--ac)" />}
               {tooltip?.x === i && (
-                <line
-                  x1={xPos(i)} y1={PAD.top}
-                  x2={xPos(i)} y2={PAD.top + innerH}
-                  stroke="var(--bd2)" strokeWidth={1} strokeDasharray="3 2"
-                />
+                <line x1={xPos(i)} y1={PAD.top} x2={xPos(i)} y2={PAD.top + innerH}
+                  stroke="var(--bd2)" strokeWidth={1} strokeDasharray="3 2" />
               )}
             </g>
           ))}
-
           {puntos.map((p, i) => (
             <text key={p.mesISO + 'l'}
-              x={xPos(i)} y={H - 4}
-              textAnchor="middle" fontSize={8}
+              x={xPos(i)} y={H - 4} textAnchor="middle" fontSize={8}
               fill={i === n - 1 ? 'var(--ac)' : 'var(--tx3)'}
               fontWeight={i === n - 1 ? 700 : 400}
             >
@@ -257,7 +203,6 @@ export function GraficoEvolucion({ modo }: Props) {
         })()}
       </div>
 
-      {/* Resumen último mes — igual que Dashboard */}
       <div className={styles.resumen}>
         <div className={styles.resumenItem}>
           <span className={styles.resumenLabel}>Este mes gastado</span>

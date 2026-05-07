@@ -103,7 +103,7 @@ export function Balance() {
     if (!monto) { mostrarToast('Ingresá un monto', 'err'); return; }
     try {
       await declararPagoDeuda({ deudaId: deuda.id, monto });
-      mostrarToast(`Pago declarado ✓ — esperando confirmación de ${pareja.nombre}`);
+      mostrarToast(`Pago declarado ✓ — esperando confirmación de ${pareja?.nombre ?? 'tu pareja'}`);
       setPagandoId(null);
       setMontoPago('');
       cargar();

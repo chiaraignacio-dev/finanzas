@@ -2,7 +2,7 @@ import { useState }                from 'react';
 import { Input, Select, Button, Card } from '../../../components/ui';
 import { RadioGroup }              from '../../../components/ui/RadioGroup';
 import { usarSesion }              from '../../../context/SesionContext';
-import { sbPost, sbPatch }         from '../../../lib/supabase';
+import { sbPost, sbRpc }           from '../../../lib/supabase';
 import { obtenerFechaISO, num }    from '../../../lib/utils';
 import styles                      from './forms.module.css';
 
@@ -17,7 +17,7 @@ const OPCIONES_DESTINO = [
 export function AhorroForm({ onExito }: Props) {
   const { usuario, metas } = usarSesion();
   const [metaId,   setMetaId]   = useState('');
-  const [fecha,    setFecha]    = useState(obtenerFechaISO());
+  const [fecha,    setFecha]    = useState(() => obtenerFechaISO());
   const [monto,    setMonto]    = useState('');
   const [destino,  setDestino]  = useState('pesos');
   const [notas,    setNotas]    = useState('');
@@ -52,9 +52,16 @@ export function AhorroForm({ onExito }: Props) {
         es_compartido: false,
         estado       : 'confirmado',
       });
+
+      // FIX: usar RPC atómico en lugar de sbPatch para evitar race condition
+      // cuando dos usuarios ahorran a la misma meta simultáneamente
       if (meta) {
-        await sbPatch('metas', metaId, { monto_actual: num(meta.monto_actual) + montoNum });
+        await sbRpc('fn_sumar_ahorro_a_meta', {
+          p_meta_id: metaId,
+          p_monto  : montoNum,
+        });
       }
+
       onExito(`Ahorro guardado ✓ — aportaste ${pct}% a "${meta?.nombre}"`);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Error al guardar');

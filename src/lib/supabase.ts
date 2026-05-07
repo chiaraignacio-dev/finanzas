@@ -11,7 +11,7 @@ export const supabase = createClient(SB_URL, SB_KEY);
 export async function sbGet<T>(
   table  : string,
   filters: Record<string, string> = {},
-  ttlMs  = 60_000,   // 0 = sin cache
+  ttlMs  = 60_000,
 ): Promise<T[]> {
   const key = `${table}:${JSON.stringify(filters)}`;
 
@@ -27,6 +27,9 @@ export async function sbGet<T>(
       if (op === 'gte')  req = (req as any).gte(col, val);
       if (op === 'lte')  req = (req as any).lte(col, val);
       if (op === 'like') req = (req as any).like(col, val);
+      // Soporte para is.null e is.not null (PostgREST)
+      if (op === 'is' && val === 'null')     req = (req as any).is(col, null);
+      if (op === 'is' && val === 'not null') req = (req as any).not(col, 'is', null);
     }
     const { data, error } = await req;
     if (error) throw new Error(error.message);
@@ -37,7 +40,6 @@ export async function sbGet<T>(
   return cachedGet<T[]>(key, fetcher, ttlMs);
 }
 
-// sbPost y sbPatch invalidan el cache de la tabla afectada
 export async function sbPost<T>(
   table  : string,
   payload: Record<string, unknown>,
@@ -45,7 +47,7 @@ export async function sbPost<T>(
   const { data, error } = await supabase
     .from(table).insert(payload).select().single();
   if (error) throw new Error(error.message);
-  cache.invalidate(table + ':');   // invalida todas las queries de esta tabla
+  cache.invalidate(table + ':');
   return data as T;
 }
 
@@ -58,5 +60,15 @@ export async function sbPatch<T>(
     .from(table).update(payload).eq('id', id).select().single();
   if (error) throw new Error(error.message);
   cache.invalidate(table + ':');
+  return data as T;
+}
+
+// ── RPC — llamadas a funciones de base de datos ────────
+export async function sbRpc<T = void>(
+  fn    : string,
+  params: Record<string, unknown> = {},
+): Promise<T> {
+  const { data, error } = await supabase.rpc(fn, params);
+  if (error) throw new Error(error.message);
   return data as T;
 }
