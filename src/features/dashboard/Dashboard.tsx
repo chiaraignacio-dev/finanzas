@@ -54,7 +54,11 @@ export function Dashboard() {
 
         const [mios, comp] = await Promise.all([
           // Traer todos los movimientos del mes del usuario (confirmados + comprometidos)
-          sbGet<Movimiento>('movimientos', { user_id: `eq.${user.id}`, fecha: `gte.${desdeMes}` }, 0),
+          sbGet<Movimiento>('movimientos', {
+            user_id: `eq.${user.id}`,
+            fecha: `gte.${desdeMes}`,
+            estado: 'neq.comprometido',
+          }, 0),
           // Compartidos confirmados de la pareja del mes (excluye consumos de tarjeta)
           sbGet<Movimiento>('movimientos', {
             es_compartido: 'eq.true',
