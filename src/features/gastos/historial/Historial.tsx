@@ -1,9 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Card, Badge, Button, Input }    from '../../../components/ui';
+import { Card, Badge, Button }           from '../../../components/ui';
 import { PageHeader }                    from '../../../components/ui/PageHeader';
-import { ConfirmDialog }                 from '../../../components/ui/ConfirmDialog';
 import { MovimientoItem }                from './MovimientoItem';
-import { EditarMovimientoModal }         from './EditarMovimientoModal';
 import { sbGet, sbPatch }               from '../../../lib/supabase';
 import { usarSesion, usarToast }         from '../../../context/SesionContext';
 import { fmt, num }                      from '../../../lib/utils';
@@ -28,14 +26,8 @@ export function Historial({ onBadge }: Props) {
   const [servicios,  setServicios]  = useState<Servicio[]>([]);
   const [loading,    setLoading]    = useState(true);
 
-  // Selección masiva
-  const [seleccion,     setSeleccion]     = useState<Set<string>>(new Set());
-  const [pagandoMasivo, setPagandoMasivo] = useState(false);
-  const [montoMasivo,   setMontoMasivo]   = useState('');
-
-  // Editar / eliminar
-  const [editando,     setEditando]     = useState<Movimiento | null>(null);
-  const [eliminandoId, setEliminandoId] = useState<string | null>(null);
+  // ✅ Expandible para ver detalles
+  const [expandidas, setExpandidas] = useState<Set<string>>(new Set());
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -72,11 +64,10 @@ export function Historial({ onBadge }: Props) {
         all = rows.filter(r => { if (seen.has(r.id)) return false; seen.add(r.id); return true; });
       }
       setMovs(all);
-      setSeleccion(new Set());
     } finally {
       setLoading(false);
     }
-  }, [mode, user.id]);
+  }, [mode, user.id, onBadge]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -104,197 +95,99 @@ export function Historial({ onBadge }: Props) {
     } catch { onToast('Error', 'err'); }
   }
 
-  // ── Selección masiva ─────────────────────────────────
-  function toggleSeleccion(id: string) {
-    setSeleccion(prev => {
+  // ✅ Toggle expandir/contraer
+  function toggleExpandir(id: string) {
+    setExpandidas(prev => {
       const next = new Set(prev);
       next.has(id) ? next.delete(id) : next.add(id);
-      if (next.size === 0) setPagandoMasivo(false);
       return next;
     });
   }
 
-  const movimientosSeleccionados = movs.filter(m => seleccion.has(m.id));
-  const totalSeleccionado = movimientosSeleccionados.reduce((a, m) => a + num(m.mi_parte), 0);
-
-  async function pagarMasivo() {
-    const montoPago = num(montoMasivo) || totalSeleccionado;
-    if (!montoPago || seleccion.size === 0) return;
-
-    let restante = montoPago;
-    for (const mov of movimientosSeleccionados) {
-      const saldo = num(mov.monto_total) - num(mov.monto_pagado);
-      const pagar = Math.min(restante, saldo);
-      if (pagar <= 0) continue;
-      const nuevoPagado  = num(mov.monto_pagado) + pagar;
-      const estadoNuevo  = nuevoPagado >= num(mov.monto_total) ? 'confirmado' : 'parcial';
-      await sbPatch('movimientos', mov.id, { monto_pagado: nuevoPagado, estado: estadoNuevo });
-      restante -= pagar;
-    }
-    onToast(`Pago masivo registrado ✓ — ${fmt(montoPago)}`);
-    setPagandoMasivo(false);
-    setMontoMasivo('');
-    setSeleccion(new Set());
-    load();
-  }
-
-  function handleGuardado() {
-    setEditando(null);
-    onToast('Movimiento actualizado ✓');
-    load();
-  }
-
-  async function confirmarEliminacion() {
-    if (!eliminandoId) return;
-    try {
-      await sbPatch('movimientos', eliminandoId, { estado: 'rechazado' });
-      onToast('Movimiento eliminado');
-    } catch { onToast('Error', 'err'); }
-    setEliminandoId(null);
-    load();
-  }
-
-  const esSeleccionable = (m: Movimiento) =>
-    m.user_id === user.id &&
-    (m.tipo === 'gasto' || m.tipo === 'deuda') &&
-    m.estado !== 'comprometido';
+  // ✅ Convertir Record a Array para pasar a MovimientoItem
+  const allUsersArray = Object.values(allUsers);
 
   return (
     <div>
-      <EditarMovimientoModal
-        movimiento={editando}
-        onCerrar={() => setEditando(null)}
-        onGuardado={handleGuardado}
-      />
-      <ConfirmDialog
-        abierto={!!eliminandoId}
-        mensaje="¿Eliminás este movimiento? Se marcará como rechazado."
-        peligroso
-        labelConfirmar="Sí, eliminar"
-        onConfirmar={confirmarEliminacion}
-        onCancelar={() => setEliminandoId(null)}
-      />
+      <PageHeader title="Historial" subtitle="Movimientos recientes" />
 
-      <PageHeader title="Historial" subtitle={`${movs.length} movimientos`} />
+      {/* ── Pendientes compartidos de confirmación ───── */}
+      {pendientes.length > 0 && (
+        <>
+          <div className={styles.slab}>⏳ Pendientes de confirmar</div>
+          <Card style={{ margin: '0 16px 12px' }}>
+            {pendientes.map(m => {
+              const otro = allUsersArray.find(u => u.id === m.user_id);
+              return (
+                <div key={m.id} className={styles.row}>
+                  <div className={styles.rowInfo}>
+                    <div className={styles.rowDesc}>{m.descripcion}</div>
+                    <div className={styles.rowMeta}>
+                      {new Date(m.fecha).toLocaleDateString('es-AR')}
+                      {otro && ` • ${otro.nombre} lo cargó`}
+                    </div>
+                  </div>
+                  <div className={styles.rowDer}>
+                    <div className={styles.rowMonto}>{fmt(num(m.mi_parte))}</div>
+                    <Badge variant="warning">Compartido</Badge>
+                  </div>
+                  <div className={styles.rowAcciones}>
+                    <Button variant="success" size="sm" onClick={() => confirmar(m.id)}>✓ Confirmar</Button>
+                    <Button variant="danger" size="sm" onClick={() => rechazar(m.id)}>✕ Rechazar</Button>
+                  </div>
+                </div>
+              );
+            })}
+          </Card>
+        </>
+      )}
 
+      {/* ── Servicios vencidos pendientes ─────────── */}
+      {servicios.length > 0 && (
+        <>
+          <div className={styles.slab}>🔴 Servicios vencidos</div>
+          <Card style={{ margin: '0 16px 12px' }}>
+            {servicios.map(s => (
+              <div key={s.id} className={styles.row}>
+                <div className={styles.rowInfo}>
+                  <div className={styles.rowDesc}>{ICONS_SRV[s.servicio] || '📄'} {s.servicio}</div>
+                  <div className={styles.rowMeta}>Vence: {new Date(s.fecha_vencimiento).toLocaleDateString('es-AR')}</div>
+                </div>
+                <div className={styles.rowDer}>
+                  <div className={styles.rowMonto}>{fmt(num(s.mi_parte))}</div>
+                  <Badge variant="danger">Vencido</Badge>
+                </div>
+                <Button variant="primary" fullWidth onClick={() => pagarServicio(s.id)}>Pagar</Button>
+              </div>
+            ))}
+          </Card>
+        </>
+      )}
+
+      {/* ── Toggle yo / hogar ─────────────────────── */}
       <div className={styles.toggle}>
         <button className={`${styles.tb} ${mode === 'yo'    ? styles.active : ''}`} onClick={() => setMode('yo')}>👤 Yo</button>
         <button className={`${styles.tb} ${mode === 'hogar' ? styles.active : ''}`} onClick={() => setMode('hogar')}>🏠 Hogar</button>
       </div>
 
-      {/* Pendientes compartidos */}
-      {pendientes.length > 0 && (
-        <div>
-          <div className={styles.slab} style={{ color: 'var(--am)' }}>⏳ Gastos compartidos pendientes</div>
-          {pendientes.map(r => {
-            const quien = Object.values(allUsers).find((u: any) => u.id === r.user_id)?.nombre || 'Otro';
-            return (
-              <Card key={r.id} variant="pending" className={styles.pendCard}>
-                <div className={styles.pendTop}>
-                  <div>
-                    <div className={styles.pendDesc}>{r.descripcion}</div>
-                    <div className={styles.pendMeta}>{r.fecha} · de {quien}</div>
-                  </div>
-                  <Badge variant="warning">Pendiente</Badge>
-                </div>
-                <div className={styles.pendParts}>
-                  <div className={styles.part}><div className={styles.partLabel}>Total</div><div className={styles.partVal}>{fmt(parseFloat(r.monto_total))}</div></div>
-                  <div className={styles.part}><div className={styles.partLabel}>Tu parte</div><div className={styles.partVal} style={{ color: 'var(--ac2)' }}>{fmt(parseFloat(r.parte_contraparte || r.mi_parte))}</div></div>
-                </div>
-                <div className={styles.pendActions}>
-                  <Button variant="success" onClick={() => confirmar(r.id)} style={{ flex: 1 }}>✓ Confirmar</Button>
-                  <Button variant="danger"  onClick={() => rechazar(r.id)}  style={{ flex: 1 }}>✕ Rechazar</Button>
-                </div>
-              </Card>
-            );
-          })}
-        </div>
+      {/* ── Historial de movimientos ──────────────── */}
+      {loading && <div className={styles.empty}>Cargando...</div>}
+      {!loading && movs.length === 0 && <div className={styles.empty}>Sin movimientos registrados</div>}
+      {!loading && movs.length > 0 && (
+        <Card style={{ margin: '0 16px 80px', padding: '0' }}>
+          {movs.map(m => (
+            <MovimientoItem
+              key={m.id}
+              mov={m}
+              allUsers={allUsersArray}
+              userId={user.id}
+              mode={mode}
+              esExpandida={expandidas.has(m.id)}
+              onToggleExpandir={() => toggleExpandir(m.id)}
+            />
+          ))}
+        </Card>
       )}
-
-      {/* Servicios pendientes */}
-      {servicios.length > 0 && (
-        <div>
-          <div className={styles.slab} style={{ color: 'var(--pu)' }}>🔌 Servicios pendientes de pago</div>
-          <Card>
-            {servicios.map(s => (
-              <div key={s.id} className={styles.srvItem}>
-                <div className={styles.srvIcon}>{ICONS_SRV[s.servicio] || '🔌'}</div>
-                <div className={styles.srvInfo}>
-                  <div className={styles.srvName}>{s.servicio.charAt(0).toUpperCase() + s.servicio.slice(1)}</div>
-                  <div className={styles.srvMeta}>Vcto: {new Date(s.fecha_vencimiento).toLocaleDateString('es-AR')}{s.es_compartido ? ' · Compartido' : ''}</div>
-                </div>
-                <div className={styles.srvRight}>
-                  <div className={styles.srvAmt}>{fmt(parseFloat(s.mi_parte))}</div>
-                  <Button variant="ghost" size="sm" onClick={() => pagarServicio(s.id)} style={{ color: 'var(--gn)', border: '1px solid rgba(16,185,129,0.4)', marginTop: 4 }}>
-                    Pagar ✓
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </Card>
-        </div>
-      )}
-
-      {/* Lista de movimientos */}
-      <div className={styles.slab}>{mode === 'yo' ? 'Mis movimientos' : 'Movimientos del hogar'}</div>
-      <Card>
-        {loading && <div className={styles.loading}><div className={styles.spin} /></div>}
-        {!loading && movs.length === 0 && <div className={styles.empty}>Sin movimientos aún</div>}
-        {!loading && movs.map(r => (
-          <MovimientoItem
-            key           ={r.id}
-            movimiento    ={r}
-            usuarioActual ={user}
-            todosUsuarios ={allUsers}
-            seleccionado  ={seleccion.has(r.id)}
-            onToggleSelect={esSeleccionable(r) ? toggleSeleccion : undefined}
-            onEditar      ={r.user_id === user.id ? setEditando : undefined}
-            onEliminar    ={r.user_id === user.id ? setEliminandoId : undefined}
-            mostrarAutor  ={mode === 'hogar'}
-          />
-        ))}
-      </Card>
-
-      {/* Footer pago masivo */}
-      {seleccion.size > 0 && (
-        <div className={styles.footerMasivo}>
-          <div className={styles.footerInfo}>
-            <span className={styles.footerCant}>{seleccion.size} seleccionado{seleccion.size > 1 ? 's' : ''}</span>
-            <span className={styles.footerTotal}>{fmt(totalSeleccionado)}</span>
-          </div>
-          {!pagandoMasivo ? (
-            <div className={styles.footerAcciones}>
-              <Button variant="primary" fullWidth onClick={() => setPagandoMasivo(true)}>
-                Pagar seleccionados
-              </Button>
-              <Button variant="secondary" size="sm" onClick={() => setSeleccion(new Set())}>
-                Cancelar
-              </Button>
-            </div>
-          ) : (
-            <div className={styles.footerPago}>
-              <Input
-                type="number"
-                placeholder={`Total: ${fmt(totalSeleccionado)}`}
-                value={montoMasivo}
-                onChange={e => setMontoMasivo(e.target.value)}
-                hint="Dejá vacío para pagar el total completo"
-                fullWidth
-              />
-              <div className={styles.footerAcciones}>
-                <Button variant="success" fullWidth onClick={pagarMasivo}>
-                  Confirmar {montoMasivo ? fmt(num(montoMasivo)) : fmt(totalSeleccionado)}
-                </Button>
-                <Button variant="secondary" size="sm" onClick={() => { setPagandoMasivo(false); setMontoMasivo(''); }}>
-                  Cancelar
-                </Button>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      <div style={{ height: seleccion.size > 0 ? 220 : 16 }} />
     </div>
   );
 }

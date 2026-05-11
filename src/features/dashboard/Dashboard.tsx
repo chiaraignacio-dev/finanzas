@@ -25,6 +25,14 @@ export function Dashboard() {
   const [ahorros,   setAhorros]   = useState<Movimiento[]>([]);
   const [loading,   setLoading]   = useState(true);
   const [reloadKey, setReloadKey] = useState(0);
+  
+  // ✅ Estados para gráficos
+  const [movGastosMes,       setMovGastosMes]       = useState<Movimiento[]>([]);
+  const [movsHistoricos,     setMovsHistoricos]     = useState<Movimiento[]>([]);
+  const [ingresosHistoricos, setIngresosHistoricos] = useState<Ingreso[]>([]);
+  const [mesesGrafico,       setMesesGrafico]       = useState<{
+    label: string; mesISO: string; desde: string; hasta: string;
+  }[]>([]);
 
   const load = useCallback(async () => {
     // Calcular fechas frescas en cada ejecución (evita stale values)
@@ -35,29 +43,34 @@ export function Dashboard() {
       let rows: Movimiento[] = [];
 
       if (mode === 'yo') {
+        // ✅ Solo ingresos patrimoniales reales (excluye reintegros internos)
         const ingresosRecibidos = await sbGet<Ingreso>('ingresos', {
           user_id       : `eq.${user.id}`,
           recibido      : 'eq.true',
           fecha_recibido: `gte.${desdeMes}`,
+          es_reintegro  : 'not.eq.true',  // Excluye donde es_reintegro = true
         }, 0);
         ingTotal = ingresosRecibidos.reduce((a, i) => a + num(i.monto), 0);
 
         const [mios, comp] = await Promise.all([
           // Traer todos los movimientos del mes del usuario (confirmados + comprometidos)
           sbGet<Movimiento>('movimientos', { user_id: `eq.${user.id}`, fecha: `gte.${desdeMes}` }, 0),
-          // Compartidos confirmados de la pareja del mes
+          // Compartidos confirmados de la pareja del mes (excluye consumos de tarjeta)
           sbGet<Movimiento>('movimientos', {
             es_compartido: 'eq.true',
             estado       : 'eq.confirmado',
             user_id      : `neq.${user.id}`,
             fecha        : `gte.${desdeMes}`,
+            resumen_id   : 'is.null',
           }, 0),
         ]);
         rows = [...mios, ...comp];
       } else {
+        // ✅ Solo ingresos patrimoniales reales (excluye reintegros internos)
         const todosIngresos = await sbGet<Ingreso>('ingresos', {
           recibido      : 'eq.true',
           fecha_recibido: `gte.${desdeMes}`,
+          es_reintegro  : 'not.eq.true',  // Excluye donde es_reintegro = true
         }, 0);
         ingTotal = todosIngresos.reduce((a, i) => a + num(i.monto), 0);
 
@@ -146,6 +159,61 @@ export function Dashboard() {
 
       const soloAhorros = ahorrosData.filter(m => m.es_ahorro || m.tipo === 'ahorro');
 
+      // ── Datos para los gráficos ────────────────────────────────────────────
+      // ✅ Movimientos del mes filtrados (gastoBase) para GraficoTorta
+      const movGastosMesData = rows.filter(r =>
+        r.tipo === 'gasto' &&
+        !r.es_ahorro &&
+        r.estado === 'confirmado' &&
+        !r.resumen_id
+      );
+
+      // ✅ Datos históricos de 6 meses para GraficoEvolucion
+      const hace6Meses = new Date();
+      hace6Meses.setMonth(hace6Meses.getMonth() - 6);
+      const desde6Meses = hace6Meses.toISOString().split('T')[0];
+
+      // Generar array de meses para el gráfico
+      const mesesArray = [];
+      for (let i = 5; i >= 0; i--) {
+        const d = new Date();
+        d.setMonth(d.getMonth() - i);
+        const mesISO = d.toISOString().substring(0, 7);  // "2026-05"
+        const primerDia = new Date(d.getFullYear(), d.getMonth(), 1);
+        const ultimoDia = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+        mesesArray.push({
+          label : d.toLocaleString('es-AR', { month: 'short' }),
+          mesISO: mesISO,
+          desde : primerDia.toISOString().split('T')[0],
+          hasta : ultimoDia.toISOString().split('T')[0],
+        });
+      }
+
+      const [movsHist, ingrHist] = await Promise.all([
+        // Movimientos históricos del usuario (o todos en modo hogar)
+        mode === 'yo'
+          ? sbGet<Movimiento>('movimientos', {
+              user_id: `eq.${user.id}`,
+              fecha  : `gte.${desde6Meses}`,
+            }, 0)
+          : sbGet<Movimiento>('movimientos', {
+              fecha: `gte.${desde6Meses}`,
+            }, 0),
+        // Ingresos históricos (excluye reintegros)
+        mode === 'yo'
+          ? sbGet<Ingreso>('ingresos', {
+              user_id       : `eq.${user.id}`,
+              recibido      : 'eq.true',
+              fecha_recibido: `gte.${desde6Meses}`,
+              es_reintegro  : 'not.eq.true',
+            }, 0)
+          : sbGet<Ingreso>('ingresos', {
+              recibido      : 'eq.true',
+              fecha_recibido: `gte.${desde6Meses}`,
+              es_reintegro  : 'not.eq.true',
+            }, 0),
+      ]);
+
       const totalGas = gasTotal + pagosDeuda;
       setGas(totalGas);
       setFalta(srvP + tarjP);
@@ -153,6 +221,10 @@ export function Dashboard() {
       setEnTarjeta(enTarjetaTotal);
       setMetas(metasData);
       setAhorros(soloAhorros);
+      setMovGastosMes(movGastosMesData);
+      setMovsHistoricos(movsHist);
+      setIngresosHistoricos(ingrHist);
+      setMesesGrafico(mesesArray);
     } finally {
       setLoading(false);
     }
@@ -214,13 +286,25 @@ export function Dashboard() {
       {/* Gráfico de evolución mensual */}
       <div className={styles.slab}>Evolución últimos 6 meses</div>
       <Card style={{ margin: '0 16px 12px', padding: '12px 16px' }}>
-        {!loading && <GraficoEvolucion modo={mode} />}
+        {!loading && (
+          <GraficoEvolucion 
+            modo={mode} 
+            movimientos={movsHistoricos}
+            ingresos={ingresosHistoricos}
+            meses={mesesGrafico}
+          />
+        )}
         {loading   && <div className={styles.empty}>Cargando…</div>}
       </Card>
 
       <div className={styles.slab}>Gasto por categoría</div>
       <Card style={{ margin: '0 16px 12px', padding: '12px 16px' }}>
-        {!loading && <GraficoTorta modo={mode} />}
+        {!loading && (
+          <GraficoTorta 
+            modo={mode}
+            movimientos={movGastosMes}
+          />
+        )}
         {loading && <div className={styles.empty}>Cargando…</div>}
       </Card>
 

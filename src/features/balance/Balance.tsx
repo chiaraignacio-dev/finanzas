@@ -25,6 +25,17 @@ export function Balance() {
   const [pagandoId,  setPagandoId]  = useState<string | null>(null);
   const [montoPago,  setMontoPago]  = useState('');
 
+  // ✅ Selección masiva para PAGO de deudas (yo soy deudor)
+  const [seleccionPago,     setSeleccionPago]     = useState<Set<string>>(new Set());
+  const [pagandoMasivo,     setPagandoMasivo]     = useState(false);
+  const [montoPagoMasivo,   setMontoPagoMasivo]   = useState('');
+
+  // ✅ Selección masiva para COBRO de deudas (yo soy acreedor)
+  const [seleccionCobro,    setSeleccionCobro]    = useState<Set<string>>(new Set());
+
+  // Expandible para ver detalles de cada deuda
+  const [expandidas, setExpandidas] = useState<Set<string>>(new Set());
+
   const cargar = useCallback(async () => {
     if (!pareja) { setCargando(false); return; }
     setCargando(true);
@@ -44,7 +55,7 @@ export function Balance() {
     } catch {
       mostrarToast('Error al cargar el balance', 'err');
     } finally { setCargando(false); }
-  }, [usuario.id, pareja]);
+  }, [usuario.id, pareja, mostrarToast]);
 
   useEffect(() => { cargar(); }, [cargar]);
 
@@ -61,7 +72,7 @@ export function Balance() {
   const yoSoyAcreedor = neto > 0;
   const estaIgual     = neto === 0;
 
-  // ── Grupos por estado ──────────────────────────────
+  // ── Grupos por estado ──────────────────────────────────────
   const porAceptar   = deudasLeDebYo.filter(d => d.estado === 'por_aceptar');
   const pendientes   = deudasLeDebYo.filter(d => d.estado === 'pendiente' || d.estado === 'parcial');
   const porConfirmar = deudasLeDebYo.filter(d => d.estado === 'por_confirmar');
@@ -99,80 +110,185 @@ export function Balance() {
   }
 
   async function handleDeclararPago(deuda: DeudaInterpersonal) {
-    const monto = num(montoPago);
-    if (!monto) { mostrarToast('Ingresá un monto', 'err'); return; }
+    const monto = num(montoPago) || (num(deuda.monto_total) - num(deuda.monto_pagado));
+    if (monto <= 0) return;
     try {
-      await declararPagoDeuda({ deudaId: deuda.id, monto });
-      mostrarToast(`Pago declarado ✓ — esperando confirmación de ${pareja?.nombre ?? 'tu pareja'}`);
+      // ✅ FIX: declararPagoDeuda NO acepta deudorId
+      await declararPagoDeuda({
+        deudaId : deuda.id,
+        monto   : monto,
+      });
+      mostrarToast('Pago declarado ✓');
       setPagandoId(null);
       setMontoPago('');
       cargar();
     } catch { mostrarToast('Error', 'err'); }
   }
 
-  async function handleConfirmarCobro(deuda: DeudaInterpersonal) {
+  async function handleConfirmarCobro(pago: PagoDeudaInterpersonal, deudaId: string) {
     try {
-      // Buscar el pago pendiente de confirmación
-      const pagos = await sbGet<PagoDeudaInterpersonal>('pagos_deuda_interpersonal', {
-        deuda_id  : `eq.${deuda.id}`,
-        confirmado: 'eq.false',
-      }, 0);
-      if (!pagos.length) { mostrarToast('No hay pago pendiente de confirmación', 'err'); return; }
-      const pago = pagos[pagos.length - 1]; // el más reciente
       await confirmarPagoRecibido({
-        deudaId   : deuda.id,
+        deudaId   : deudaId,
         pagoId    : pago.id,
         monto     : num(pago.monto),
         acreedorId: usuario.id,
       });
-      mostrarToast('Pago confirmado ✓');
+      mostrarToast('Cobro confirmado ✓');
       cargar();
     } catch { mostrarToast('Error', 'err'); }
   }
 
+  function etiquetaOrigen(origen: string) {
+    if (origen === 'gasto')   return 'Gasto compartido';
+    if (origen === 'resumen') return 'Resumen de tarjeta';
+    if (origen === 'manual')  return 'Deuda explícita';
+    return origen;
+  }
+
+  // ✅ Selección masiva de PAGOS (yo deudor)
+  function toggleSeleccionPago(id: string) {
+    setSeleccionPago(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      if (next.size === 0) setPagandoMasivo(false);
+      return next;
+    });
+  }
+
+  const deudasSeleccionadasPago = pendientes.filter(d => seleccionPago.has(d.id));
+  const totalSeleccionadoPago = deudasSeleccionadasPago.reduce((a, d) => 
+    a + num(d.monto_total) - num(d.monto_pagado), 0
+  );
+
+  async function pagarMasivo() {
+    const montoPago = num(montoPagoMasivo) || totalSeleccionadoPago;
+    if (!montoPago || seleccionPago.size === 0) return;
+
+    try {
+      let restante = montoPago;
+      for (const deuda of deudasSeleccionadasPago) {
+        if (restante <= 0) break;
+        const saldo = num(deuda.monto_total) - num(deuda.monto_pagado);
+        const pagar = Math.min(restante, saldo);
+        
+        // ✅ FIX: declararPagoDeuda NO acepta deudorId
+        await declararPagoDeuda({
+          deudaId : deuda.id,
+          monto   : pagar,
+        });
+        
+        restante -= pagar;
+      }
+      
+      mostrarToast(`Pago masivo registrado ✓ — ${fmt(montoPago)}`);
+      setPagandoMasivo(false);
+      setMontoPagoMasivo('');
+      setSeleccionPago(new Set());
+      cargar();
+    } catch {
+      mostrarToast('Error en pago masivo', 'err');
+    }
+  }
+
+  // ✅ Selección masiva de COBROS (yo acreedor)
+  function toggleSeleccionCobro(id: string) {
+    setSeleccionCobro(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
+  const cobrosSeleccionados = cobrosAPorConfirmar.filter(d => seleccionCobro.has(d.id));
+  const totalCobrosSeleccionados = cobrosSeleccionados.reduce((a, d) => 
+    a + num(d.monto_total) - num(d.monto_pagado), 0
+  );
+
+  async function cobrarMasivo() {
+    if (seleccionCobro.size === 0) return;
+
+    try {
+      // Para cada deuda seleccionada, confirmar sus pagos pendientes
+      for (const deuda of cobrosSeleccionados) {
+        const pagos = await sbGet<PagoDeudaInterpersonal>('pagos_deuda_interpersonal', {
+          deuda_id  : `eq.${deuda.id}`,
+          confirmado: 'eq.false',
+        }, 0);
+
+        for (const pago of pagos) {
+          await confirmarPagoRecibido({
+            deudaId   : deuda.id,
+            pagoId    : pago.id,
+            monto     : num(pago.monto),
+            acreedorId: usuario.id,
+          });
+        }
+      }
+      
+      mostrarToast(`Cobro masivo confirmado ✓ — ${seleccionCobro.size} deudas`);
+      setSeleccionCobro(new Set());
+      cargar();
+    } catch {
+      mostrarToast('Error en cobro masivo', 'err');
+    }
+  }
+
+  // Toggle expandir/contraer
+  function toggleExpandir(id: string) {
+    setExpandidas(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
+  if (cargando) {
+    return (
+      <div>
+        <PageHeader title="Balance" subtitle="Estado financiero entre ustedes" />
+        <div className={styles.cargando}>
+          <div className={styles.spinner} />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div>
-      <PageHeader title="Balance" subtitle={`${usuario.nombre} y ${pareja.nombre}`} />
+      <PageHeader title="Balance" subtitle={`Entre ${usuario.nombre} y ${pareja.nombre}`} />
 
-      {cargando && <div className={styles.cargando}><div className={styles.spinner} /></div>}
+      {/* Tarjeta de neto */}
+      <Card className={styles.cardNeto}>
+        <div className={styles.netoIcono}>
+          {estaIgual ? '🤝' : yoSoyAcreedor ? '💰' : '💸'}
+        </div>
+        <div className={styles.netoTitulo}>
+          {estaIgual ? 'Están al día' : yoSoyAcreedor ? `${pareja.nombre} te debe` : `Le debés a ${pareja.nombre}`}
+        </div>
+        <div className={`${styles.netoMonto} ${estaIgual ? '' : yoSoyAcreedor ? styles.aFavor : styles.enContra}`}>
+          {fmt(Math.abs(neto))}
+        </div>
+        <div className={styles.netoSub}>
+          {estaIgual 
+            ? 'No hay deudas pendientes entre ustedes'
+            : `Neto del balance interpersonal`
+          }
+        </div>
+      </Card>
 
-      {!cargando && (
-        <>
-          {/* ── Neto principal ──────────────────────── */}
-          <Card className={styles.cardNeto}>
-            {estaIgual ? (
-              <>
-                <div className={styles.netoIcono}>⚖️</div>
-                <div className={styles.netoTitulo}>¡Están al día!</div>
-                <div className={styles.netoSub}>No hay deudas pendientes entre ustedes.</div>
-              </>
-            ) : (
-              <>
-                <div className={styles.netoIcono}>{yoSoyAcreedor ? '💚' : '🔴'}</div>
-                <div className={styles.netoTitulo}>
-                  {yoSoyAcreedor
-                    ? `${pareja.nombre} te debe`
-                    : `Le debés a ${pareja.nombre}`}
-                </div>
-                <div className={`${styles.netoMonto} ${yoSoyAcreedor ? styles.aFavor : styles.enContra}`}>
-                  {fmt(Math.abs(neto))}
-                </div>
-                <div className={styles.netoSub}>saldo neto entre todas las deudas aceptadas</div>
-              </>
-            )}
-          </Card>
+      <div>
+        {/* ── SECCIÓN: Deudas que YO debo ─────────────────── */}
 
-          {/* ── SECCIÓN: Deudas que YO debo ─────────── */}
-
-          {/* 1. Por aceptar — Ignacio me mandó algo, tengo que aceptar */}
-          {porAceptar.length > 0 && (
-            <>
-              <div className={styles.seccion} style={{ color: 'var(--am)' }}>
-                ⏳ Por aceptar — {pareja.nombre} cargó estos gastos
-              </div>
-              <Card className={styles.cardLista}>
-                {porAceptar.map(d => (
-                  <div key={d.id} className={styles.filaDeuda}>
+        {/* 1. Por aceptar */}
+        {porAceptar.length > 0 && (
+          <>
+            <div className={styles.seccion} style={{ color: 'var(--am)' }}>
+              ⏳ Por aceptar — {pareja.nombre} cargó estos gastos
+            </div>
+            <Card className={styles.cardLista}>
+              {porAceptar.map(d => (
+                <div key={d.id} className={styles.filaDeuda}>
+                  <div className={styles.filaContenido}>
                     <div className={styles.filaInfo}>
                       <div className={styles.filaDesc}>{d.descripcion}</div>
                       <div className={styles.filaMeta}>
@@ -186,34 +302,48 @@ export function Balance() {
                       </div>
                       <Badge variant="warning">Pendiente</Badge>
                     </div>
-                    {/* Botones aceptar / rechazar */}
-                    <div className={styles.accionesDeuda}>
-                      <Button variant="success" size="sm" onClick={() => handleAceptar(d)}>
-                        ✓ Aceptar
-                      </Button>
-                      <Button variant="danger" size="sm" onClick={() => handleRechazar(d)}>
-                        ✕ Rechazar
-                      </Button>
-                    </div>
                   </div>
-                ))}
-              </Card>
-            </>
-          )}
+                  <div className={styles.accionesDeuda}>
+                    <Button variant="success" size="sm" fullWidth onClick={() => handleAceptar(d)}>
+                      ✓ Aceptar
+                    </Button>
+                    <Button variant="danger" size="sm" fullWidth onClick={() => handleRechazar(d)}>
+                      ✕ Rechazar
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </Card>
+          </>
+        )}
 
-          {/* 2. Pendientes — aceptadas, aún sin pagar */}
-          {pendientes.length > 0 && (
-            <>
-              <div className={styles.seccion} style={{ color: 'var(--rd)' }}>
-                🔴 Le debés a {pareja.nombre} — {fmt(totalQueDebYo)}
-              </div>
-              <Card className={styles.cardLista}>
-                {pendientes.map(d => {
-                  const saldo = num(d.monto_total) - num(d.monto_pagado);
-                  return (
-                    <div key={d.id} className={styles.filaDeuda}>
-                      <div className={styles.filaInfo}>
-                        <div className={styles.filaDesc}>{d.descripcion}</div>
+        {/* 2. Pendientes — aceptadas, aún sin pagar */}
+        {pendientes.length > 0 && (
+          <>
+            <div className={styles.seccion} style={{ color: 'var(--rd)' }}>
+              🔴 Le debés a {pareja.nombre} — {fmt(totalQueDebYo)}
+              {seleccionPago.size > 0 && ` · ${seleccionPago.size} seleccionadas`}
+            </div>
+            <Card className={styles.cardLista}>
+              {pendientes.map(d => {
+                const saldo = num(d.monto_total) - num(d.monto_pagado);
+                const esExpandida = expandidas.has(d.id);
+                
+                return (
+                  <div key={d.id} className={styles.filaDeuda}>
+                    <input
+                      type="checkbox"
+                      className={styles.checkbox}
+                      checked={seleccionPago.has(d.id)}
+                      onChange={() => toggleSeleccionPago(d.id)}
+                    />
+                    
+                    <div className={styles.filaContenido}>
+                      <div className={styles.filaInfo} onClick={() => toggleExpandir(d.id)}>
+                        <div className={styles.filaDesc}>
+                          <span className={styles.expandIcon}>{esExpandida ? '▼' : '▶'}</span>
+                          {d.descripcion}
+                        </div>
                         <div className={styles.filaMeta}>
                           {new Date(d.created_at).toLocaleDateString('es-AR')}
                           {' · '}<span className={styles.origen}>{etiquetaOrigen(d.origen)}</span>
@@ -223,53 +353,80 @@ export function Balance() {
                         <div className={styles.filaMonto} style={{ color: 'var(--rd)' }}>{fmt(saldo)}</div>
                         {d.estado === 'parcial' && <Badge variant="warning">Parcial</Badge>}
                       </div>
-                      {/* Flujo de pago */}
-                      {pagandoId === d.id ? (
-                        <div className={styles.pagoInline}>
-                          <Input
-                            type="number"
-                            placeholder={`Máx ${fmt(saldo)}`}
-                            value={montoPago}
-                            onChange={e => setMontoPago(e.target.value)}
-                            fullWidth
-                            autoFocus
-                          />
-                          <div className={styles.accionesDeuda}>
-                            <Button variant="success" size="sm" onClick={() => handleDeclararPago(d)}>
-                              Declarar pago
-                            </Button>
-                            <Button variant="secondary" size="sm" onClick={() => { setPagandoId(null); setMontoPago(''); }}>
-                              Cancelar
-                            </Button>
-                          </div>
-                          <button
-                            className={styles.botonTotal}
-                            onClick={() => { setMontoPago(String(saldo)); }}
-                          >
-                            Pagar total ({fmt(saldo)})
-                          </button>
-                        </div>
-                      ) : (
-                        <Button variant="primary" fullWidth onClick={() => { setPagandoId(d.id); setMontoPago(''); }}>
-                          Registrar pago
-                        </Button>
-                      )}
                     </div>
-                  );
-                })}
-              </Card>
-            </>
-          )}
 
-          {/* 3. Por confirmar — declaré que pagué, esperando que Ignacio confirme */}
-          {porConfirmar.length > 0 && (
-            <>
-              <div className={styles.seccion} style={{ color: 'var(--ac)' }}>
-                🕐 Esperando confirmación de {pareja.nombre}
-              </div>
-              <Card className={styles.cardLista}>
-                {porConfirmar.map(d => (
-                  <div key={d.id} className={styles.filaDeuda}>
+                    {esExpandida && (
+                      <div className={styles.expandido}>
+                        <div className={styles.expandidoRow}>
+                          <span className={styles.expandidoLabel}>Monto total:</span>
+                          <span className={styles.expandidoValor}>{fmt(num(d.monto_total))}</span>
+                        </div>
+                        <div className={styles.expandidoRow}>
+                          <span className={styles.expandidoLabel}>Pagado:</span>
+                          <span className={styles.expandidoValor}>{fmt(num(d.monto_pagado))}</span>
+                        </div>
+                        <div className={styles.expandidoRow}>
+                          <span className={styles.expandidoLabel}>Saldo:</span>
+                          <span className={`${styles.expandidoValor} ${styles.expandidoDestacado}`}>
+                            {fmt(saldo)}
+                          </span>
+                        </div>
+                        {d.origen && (
+                          <div className={styles.expandidoRow}>
+                            <span className={styles.expandidoLabel}>Origen:</span>
+                            <span className={styles.expandidoValor}>{etiquetaOrigen(d.origen)}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {pagandoId === d.id ? (
+                      <div className={styles.pagoInline}>
+                        <Input
+                          type="number"
+                          placeholder={`Máx ${fmt(saldo)}`}
+                          value={montoPago}
+                          onChange={e => setMontoPago(e.target.value)}
+                          fullWidth
+                          autoFocus
+                        />
+                        <div className={styles.accionesDeuda}>
+                          <Button variant="success" size="sm" fullWidth onClick={() => handleDeclararPago(d)}>
+                            Declarar pago
+                          </Button>
+                          <Button variant="secondary" size="sm" fullWidth onClick={() => { setPagandoId(null); setMontoPago(''); }}>
+                            Cancelar
+                          </Button>
+                        </div>
+                        <button
+                          className={styles.botonTotal}
+                          onClick={() => { setMontoPago(String(saldo)); }}
+                        >
+                          Pagar total ({fmt(saldo)})
+                        </button>
+                      </div>
+                    ) : (
+                      <Button variant="primary" fullWidth onClick={() => { setPagandoId(d.id); setMontoPago(''); }}>
+                        Registrar pago
+                      </Button>
+                    )}
+                  </div>
+                );
+              })}
+            </Card>
+          </>
+        )}
+
+        {/* 3. Por confirmar */}
+        {porConfirmar.length > 0 && (
+          <>
+            <div className={styles.seccion} style={{ color: 'var(--ac)' }}>
+              🕐 Esperando confirmación de {pareja.nombre}
+            </div>
+            <Card className={styles.cardLista}>
+              {porConfirmar.map(d => (
+                <div key={d.id} className={styles.filaDeuda}>
+                  <div className={styles.filaContenido}>
                     <div className={styles.filaInfo}>
                       <div className={styles.filaDesc}>{d.descripcion}</div>
                       <div className={styles.filaMeta}>Declaraste que pagaste — aguardando confirmación</div>
@@ -281,22 +438,24 @@ export function Balance() {
                       <Badge variant="info">En revisión</Badge>
                     </div>
                   </div>
-                ))}
-              </Card>
-            </>
-          )}
+                </div>
+              ))}
+            </Card>
+          </>
+        )}
 
-          {/* ── SECCIÓN: Lo que me deben A MÍ ────────── */}
+        {/* ── SECCIÓN: Lo que me deben A MÍ ──────────────── */}
 
-          {/* 1. Gastos que mandé y están por aceptar */}
-          {cobrosPoAceptar.length > 0 && (
-            <>
-              <div className={styles.seccion} style={{ color: 'var(--tx3)' }}>
-                ⏳ Enviados — esperando que {pareja.nombre} acepte
-              </div>
-              <Card className={styles.cardLista}>
-                {cobrosPoAceptar.map(d => (
-                  <div key={d.id} className={styles.filaDeuda}>
+        {/* 1. Gastos enviados por aceptar */}
+        {cobrosPoAceptar.length > 0 && (
+          <>
+            <div className={styles.seccion} style={{ color: 'var(--tx3)' }}>
+              ⏳ Enviados — esperando que {pareja.nombre} acepte
+            </div>
+            <Card className={styles.cardLista}>
+              {cobrosPoAceptar.map(d => (
+                <div key={d.id} className={styles.filaDeuda}>
+                  <div className={styles.filaContenido}>
                     <div className={styles.filaInfo}>
                       <div className={styles.filaDesc}>{d.descripcion}</div>
                       <div className={styles.filaMeta}>
@@ -305,30 +464,35 @@ export function Balance() {
                       </div>
                     </div>
                     <div className={styles.filaDerecha}>
-                      <div className={styles.filaMonto} style={{ color: 'var(--tx3)' }}>
-                        {fmt(num(d.monto_total))}
-                      </div>
-                      <Badge variant="default">Por aceptar</Badge>
+                      <div className={styles.filaMonto}>{fmt(num(d.monto_total))}</div>
+                      <Badge variant="info">Sin aceptar</Badge>
                     </div>
                   </div>
-                ))}
-              </Card>
-            </>
-          )}
+                </div>
+              ))}
+            </Card>
+          </>
+        )}
 
-          {/* 2. Cobros activos — aceptadas, pendientes de cobro */}
-          {cobrosActivos.length > 0 && (
-            <>
-              <div className={styles.seccion} style={{ color: 'var(--gn)' }}>
-                💚 {pareja.nombre} te debe — {fmt(totalAMiFavor)}
-              </div>
-              <Card className={styles.cardLista}>
-                {cobrosActivos.map(d => {
-                  const saldo = num(d.monto_total) - num(d.monto_pagado);
-                  return (
-                    <div key={d.id} className={styles.filaDeuda}>
-                      <div className={styles.filaInfo}>
-                        <div className={styles.filaDesc}>{d.descripcion}</div>
+        {/* 2. Activos — aceptados esperando pago */}
+        {cobrosActivos.length > 0 && (
+          <>
+            <div className={styles.seccion} style={{ color: 'var(--gn)' }}>
+              🟢 {pareja.nombre} te debe — {fmt(totalAMiFavor)}
+            </div>
+            <Card className={styles.cardLista}>
+              {cobrosActivos.map(d => {
+                const saldo = num(d.monto_total) - num(d.monto_pagado);
+                const esExpandida = expandidas.has(d.id);
+
+                return (
+                  <div key={d.id} className={styles.filaDeuda}>
+                    <div className={styles.filaContenido}>
+                      <div className={styles.filaInfo} onClick={() => toggleExpandir(d.id)}>
+                        <div className={styles.filaDesc}>
+                          <span className={styles.expandIcon}>{esExpandida ? '▼' : '▶'}</span>
+                          {d.descripcion}
+                        </div>
                         <div className={styles.filaMeta}>
                           {new Date(d.created_at).toLocaleDateString('es-AR')}
                           {' · '}<span className={styles.origen}>{etiquetaOrigen(d.origen)}</span>
@@ -339,64 +503,218 @@ export function Balance() {
                         {d.estado === 'parcial' && <Badge variant="warning">Parcial</Badge>}
                       </div>
                     </div>
-                  );
-                })}
-                <div className={styles.filaTotalizadora}>
-                  <span>Total a tu favor</span>
-                  <span style={{ color: 'var(--gn)', fontFamily: 'var(--font-mono)' }}>{fmt(totalAMiFavor)}</span>
-                </div>
-              </Card>
-            </>
-          )}
 
-          {/* 3. Por confirmar — Abril dice que pagó, tengo que confirmar */}
-          {cobrosAPorConfirmar.length > 0 && (
-            <>
-              <div className={styles.seccion} style={{ color: 'var(--ac)' }}>
-                ✅ {pareja.nombre} dice que pagó — confirmá vos
-              </div>
-              <Card className={styles.cardLista}>
-                {cobrosAPorConfirmar.map(d => (
-                  <div key={d.id} className={styles.filaDeuda}>
-                    <div className={styles.filaInfo}>
-                      <div className={styles.filaDesc}>{d.descripcion}</div>
-                      <div className={styles.filaMeta}>
-                        {pareja.nombre} declaró que transfirió su parte
+                    {esExpandida && (
+                      <div className={styles.expandido}>
+                        <div className={styles.expandidoRow}>
+                          <span className={styles.expandidoLabel}>Monto total:</span>
+                          <span className={styles.expandidoValor}>{fmt(num(d.monto_total))}</span>
+                        </div>
+                        <div className={styles.expandidoRow}>
+                          <span className={styles.expandidoLabel}>Pagado:</span>
+                          <span className={styles.expandidoValor}>{fmt(num(d.monto_pagado))}</span>
+                        </div>
+                        <div className={styles.expandidoRow}>
+                          <span className={styles.expandidoLabel}>Saldo:</span>
+                          <span className={`${styles.expandidoValor} ${styles.expandidoDestacado}`}>
+                            {fmt(saldo)}
+                          </span>
+                        </div>
                       </div>
-                    </div>
-                    <div className={styles.filaDerecha}>
-                      <div className={styles.filaMonto} style={{ color: 'var(--ac)' }}>
-                        {fmt(num(d.monto_total) - num(d.monto_pagado))}
-                      </div>
-                      <Badge variant="info">Por confirmar</Badge>
-                    </div>
-                    <div className={styles.accionesDeuda}>
-                      <Button variant="success" fullWidth onClick={() => handleConfirmarCobro(d)}>
-                        ✓ Confirmar cobro
-                      </Button>
-                    </div>
+                    )}
                   </div>
-                ))}
-              </Card>
-            </>
-          )}
+                );
+              })}
+            </Card>
+          </>
+        )}
 
-          {/* Estado vacío */}
-          {deudasMeDebenAMi.length === 0 && deudasLeDebYo.length === 0 && (
-            <div className={styles.vacio}>
-              <div style={{ fontSize: 32, marginBottom: 8 }}>✅</div>
-              <div>No hay deudas pendientes entre ustedes.</div>
+        {/* 3. ✅ Por confirmar — checkbox para cobro masivo */}
+        {cobrosAPorConfirmar.length > 0 && (
+          <>
+            <div className={styles.seccion} style={{ color: 'var(--am)' }}>
+              ⏰ Por confirmar — {pareja.nombre} declaró que pagó
+              {seleccionCobro.size > 0 && ` · ${seleccionCobro.size} seleccionadas`}
             </div>
-          )}
-        </>
+            <Card className={styles.cardLista}>
+              {cobrosAPorConfirmar.map(d => {
+                // ✅ FIX: Usar componente separado para evitar hooks en map
+                return <CobroItem key={d.id} deuda={d} 
+                  expandidas={expandidas}
+                  seleccionCobro={seleccionCobro}
+                  toggleExpandir={toggleExpandir}
+                  toggleSeleccionCobro={toggleSeleccionCobro}
+                  handleConfirmarCobro={handleConfirmarCobro}
+                />;
+              })}
+            </Card>
+          </>
+        )}
+      </div>
+
+      {/* ✅ Footer flotante para PAGO masivo */}
+      {seleccionPago.size > 0 && (
+        <div className={styles.footerFlotante}>
+          <div className={styles.footerContenido}>
+            <div className={styles.footerInfo}>
+              <div className={styles.footerCantidad}>{seleccionPago.size} deudas seleccionadas</div>
+              <div className={styles.footerTotal}>Total: {fmt(totalSeleccionadoPago)}</div>
+            </div>
+            
+            {pagandoMasivo ? (
+              <div className={styles.footerAcciones}>
+                <Input
+                  type="number"
+                  placeholder={fmt(totalSeleccionadoPago)}
+                  value={montoPagoMasivo}
+                  onChange={e => setMontoPagoMasivo(e.target.value)}
+                  style={{ flex: 1 }}
+                />
+                <Button variant="success" size="sm" onClick={pagarMasivo}>
+                  Pagar
+                </Button>
+                <Button variant="secondary" size="sm" onClick={() => {
+                  setPagandoMasivo(false);
+                  setMontoPagoMasivo('');
+                }}>
+                  ✕
+                </Button>
+              </div>
+            ) : (
+              <div className={styles.footerAcciones}>
+                <Button variant="primary" size="sm" onClick={() => setPagandoMasivo(true)}>
+                  Pagar seleccionadas
+                </Button>
+                <Button variant="secondary" size="sm" onClick={() => setSeleccionPago(new Set())}>
+                  Cancelar
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
       )}
-      <div style={{ height: 16 }} />
+
+      {/* ✅ Footer flotante para COBRO masivo */}
+      {seleccionCobro.size > 0 && (
+        <div className={styles.footerFlotante}>
+          <div className={styles.footerContenido}>
+            <div className={styles.footerInfo}>
+              <div className={styles.footerCantidad}>{seleccionCobro.size} cobros seleccionados</div>
+              <div className={styles.footerTotal}>Total: {fmt(totalCobrosSeleccionados)}</div>
+            </div>
+            
+            <div className={styles.footerAcciones}>
+              <Button variant="success" size="sm" onClick={cobrarMasivo}>
+                ✓ Confirmar {seleccionCobro.size} cobro{seleccionCobro.size > 1 ? 's' : ''}
+              </Button>
+              <Button variant="secondary" size="sm" onClick={() => setSeleccionCobro(new Set())}>
+                Cancelar
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-function etiquetaOrigen(origen: string): string {
-  if (origen === 'gasto')   return 'Gasto compartido';
-  if (origen === 'resumen') return 'Resumen tarjeta';
-  return 'Manual';
+// ✅ Componente separado para evitar hooks en map
+function CobroItem({ 
+  deuda, 
+  expandidas, 
+  seleccionCobro, 
+  toggleExpandir, 
+  toggleSeleccionCobro,
+  handleConfirmarCobro 
+}: {
+  deuda: DeudaInterpersonal;
+  expandidas: Set<string>;
+  seleccionCobro: Set<string>;
+  toggleExpandir: (id: string) => void;
+  toggleSeleccionCobro: (id: string) => void;
+  handleConfirmarCobro: (pago: PagoDeudaInterpersonal, deudaId: string) => Promise<void>;
+}) {
+  const [pagos, setPagos] = useState<PagoDeudaInterpersonal[]>([]);
+
+  useEffect(() => {
+    sbGet<PagoDeudaInterpersonal>('pagos_deuda_interpersonal', {
+      deuda_id  : `eq.${deuda.id}`,
+      confirmado: 'eq.false',
+    }, 0).then(setPagos);
+  }, [deuda.id]);
+
+  const esExpandida = expandidas.has(deuda.id);
+
+  return (
+    <div className={styles.filaDeuda}>
+      <input
+        type="checkbox"
+        className={styles.checkbox}
+        checked={seleccionCobro.has(deuda.id)}
+        onChange={() => toggleSeleccionCobro(deuda.id)}
+      />
+
+      <div className={styles.filaContenido}>
+        <div className={styles.filaInfo} onClick={() => toggleExpandir(deuda.id)}>
+          <div className={styles.filaDesc}>
+            <span className={styles.expandIcon}>{esExpandida ? '▼' : '▶'}</span>
+            {deuda.descripcion}
+          </div>
+          <div className={styles.filaMeta}>
+            {pagos.length > 0
+              ? `Declaró ${fmt(pagos.reduce((s, p) => s + num(p.monto), 0))} — ¿confirmar?`
+              : 'Cargando pagos...'
+            }
+          </div>
+        </div>
+        <div className={styles.filaDerecha}>
+          <div className={styles.filaMonto} style={{ color: 'var(--am)' }}>
+            {fmt(num(deuda.monto_total) - num(deuda.monto_pagado))}
+          </div>
+          <Badge variant="warning">A confirmar</Badge>
+        </div>
+      </div>
+
+      {esExpandida && (
+        <div className={styles.expandido}>
+          <div className={styles.expandidoRow}>
+            <span className={styles.expandidoLabel}>Monto total:</span>
+            <span className={styles.expandidoValor}>{fmt(num(deuda.monto_total))}</span>
+          </div>
+          <div className={styles.expandidoRow}>
+            <span className={styles.expandidoLabel}>Pagado:</span>
+            <span className={styles.expandidoValor}>{fmt(num(deuda.monto_pagado))}</span>
+          </div>
+          <div className={styles.expandidoRow}>
+            <span className={styles.expandidoLabel}>Saldo:</span>
+            <span className={`${styles.expandidoValor} ${styles.expandidoDestacado}`}>
+              {fmt(num(deuda.monto_total) - num(deuda.monto_pagado))}
+            </span>
+          </div>
+          {pagos.length > 0 && (
+            <div className={styles.expandidoRow}>
+              <span className={styles.expandidoLabel}>Pagos pendientes:</span>
+              <span className={styles.expandidoValor}>{pagos.length}</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {pagos.length > 0 && (
+        <div className={styles.accionesDeuda}>
+          {pagos.map(p => (
+            <Button
+              key={p.id}
+              variant="success"
+              size="sm"
+              fullWidth
+              onClick={() => handleConfirmarCobro(p, deuda.id)}
+            >
+              ✓ Confirmar {fmt(num(p.monto))}
+            </Button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }

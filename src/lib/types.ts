@@ -46,20 +46,22 @@ export interface Movimiento {
 }
 
 // ── Ingresos ───────────────────────────────────────────
-export type TipoIngreso = 'sueldo' | 'quincena' | 'extra' | 'otro';
+export type TipoIngreso = 'sueldo' | 'quincena' | 'extra' | 'otro' | 'reintegro';
 
 export interface Ingreso {
-  id             : string;
-  created_at     : string;
-  user_id        : string;
-  descripcion    : string;
-  monto          : string;
-  fecha_esperada : string | null;
-  fecha_recibido : string | null;
-  recibido       : boolean;
-  tipo           : TipoIngreso;
-  recurrente     : boolean;
-  notas          : string | null;
+  id                     : string;
+  created_at             : string;
+  user_id                : string;
+  descripcion            : string;
+  monto                  : string;
+  fecha_esperada         : string | null;
+  fecha_recibido         : string | null;
+  recibido               : boolean;
+  tipo                   : TipoIngreso;
+  recurrente             : boolean;
+  notas                  : string | null;
+  es_reintegro           : boolean;
+  deuda_interpersonal_id : string | null;
 }
 
 // ── Servicios ──────────────────────────────────────────

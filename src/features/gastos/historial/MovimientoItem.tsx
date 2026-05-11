@@ -1,6 +1,5 @@
-import { useState }              from 'react';
-import { Badge, Button }         from '../../../components/ui';
-import { fmt, fmtK, num }        from '../../../lib/utils';
+import { Badge }                 from '../../../components/ui';
+import { fmtK, num }             from '../../../lib/utils';
 import type { Movimiento, Usuario } from '../../../lib/types';
 import styles                    from './MovimientoItem.module.css';
 
@@ -9,32 +8,23 @@ const ICONOS: Record<string, string> = {
 };
 
 interface Props {
-  movimiento     : Movimiento;
-  usuarioActual  : Usuario;
-  todosUsuarios  : Record<string, Usuario>;
-  // Selección para pagos masivos
-  seleccionado?  : boolean;
-  onToggleSelect?: (id: string) => void;
-  // Editar / Eliminar
-  onEditar?      : (mov: Movimiento) => void;
-  onEliminar?    : (id: string) => void;
-  // Para mostrar quién fue el autor
-  mostrarAutor?  : boolean;
+  mov              : Movimiento;
+  allUsers         : Usuario[];
+  userId           : string;
+  mode             : 'yo' | 'hogar';
+  esExpandida      : boolean;
+  onToggleExpandir : () => void;
 }
 
 export function MovimientoItem({
-  movimiento: r,
-  usuarioActual,
-  todosUsuarios,
-  seleccionado,
-  onToggleSelect,
-  onEditar,
-  onEliminar,
-  mostrarAutor = false,
+  mov: r,
+  allUsers,
+  userId,
+  mode,
+  esExpandida,
+  onToggleExpandir,
 }: Props) {
-  const [expandido, setExpandido] = useState(false);
-
-  const esMio    = String(r.user_id) === String(usuarioActual.id);
+  const esMio    = String(r.user_id) === String(userId);
   const mShow    = r.es_compartido && !esMio
     ? num(r.parte_contraparte || r.mi_parte)
     : num(r.mi_parte);
@@ -45,11 +35,8 @@ export function MovimientoItem({
   const signo    = esPos ? '+' : '-';
 
   const autor    = !esMio
-    ? Object.values(todosUsuarios).find(u => u.id === r.user_id)?.nombre || 'Otro'
+    ? allUsers.find(u => u.id === r.user_id)?.nombre || 'Otro'
     : null;
-
-  // Puede editar/eliminar solo si es el creador
-  const puedeModificar = esMio && (onEditar || onEliminar);
 
   // División legible
   const divLabel: Record<string, string> = {
@@ -60,19 +47,9 @@ export function MovimientoItem({
   };
 
   return (
-    <div className={`${styles.wrap} ${seleccionado ? styles.seleccionado : ''}`}>
+    <div className={styles.wrap}>
       {/* Fila principal */}
-      <div className={styles.fila} onClick={() => setExpandido(v => !v)}>
-        {/* Checkbox para selección masiva (solo gastos/deudas propias) */}
-        {onToggleSelect && (
-          <span
-            className={styles.checkbox}
-            onClick={e => { e.stopPropagation(); onToggleSelect(r.id); }}
-          >
-            {seleccionado ? '☑' : '☐'}
-          </span>
-        )}
-
+      <div className={styles.fila} onClick={onToggleExpandir}>
         <div className={styles.icono}>{ICONOS[r.tipo] || '•'}</div>
 
         <div className={styles.info}>
@@ -88,7 +65,7 @@ export function MovimientoItem({
           <div className={styles.meta}>
             {r.fecha}
             {r.categoria ? ` · ${r.categoria}` : ''}
-            {mostrarAutor && autor ? ` · de ${autor}` : ''}
+            {mode === 'hogar' && autor ? ` · de ${autor}` : ''}
           </div>
         </div>
 
@@ -96,12 +73,12 @@ export function MovimientoItem({
           <div className={styles.monto} style={{ color }}>
             {signo}{fmtK(mShow)}
           </div>
-          <div className={`${styles.chevron} ${expandido ? styles.chevronAbierto : ''}`}>▾</div>
+          <div className={`${styles.chevron} ${esExpandida ? styles.chevronAbierto : ''}`}>▾</div>
         </div>
       </div>
 
       {/* Panel expandido */}
-      {expandido && (
+      {esExpandida && (
         <div className={styles.panel}>
           <div className={styles.panelGrid}>
             <div className={styles.panelItem}>
@@ -110,16 +87,16 @@ export function MovimientoItem({
             </div>
             <div className={styles.panelItem}>
               <span className={styles.panelLabel}>Total</span>
-              <span className={styles.panelVal}>{fmt(num(r.monto_total))}</span>
+              <span className={styles.panelVal}>${num(r.monto_total).toLocaleString('es-AR')}</span>
             </div>
             <div className={styles.panelItem}>
               <span className={styles.panelLabel}>Mi parte</span>
-              <span className={styles.panelVal} style={{ color }}>{fmt(num(r.mi_parte))}</span>
+              <span className={styles.panelVal} style={{ color }}>${num(r.mi_parte).toLocaleString('es-AR')}</span>
             </div>
             {r.es_compartido && num(r.parte_contraparte) > 0 && (
               <div className={styles.panelItem}>
                 <span className={styles.panelLabel}>Parte pareja</span>
-                <span className={styles.panelVal}>{fmt(num(r.parte_contraparte))}</span>
+                <span className={styles.panelVal}>${num(r.parte_contraparte).toLocaleString('es-AR')}</span>
               </div>
             )}
             <div className={styles.panelItem}>
@@ -145,30 +122,6 @@ export function MovimientoItem({
               </div>
             )}
           </div>
-
-          {/* Acciones */}
-          {puedeModificar && (
-            <div className={styles.acciones}>
-              {onEditar && (
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={e => { e.stopPropagation(); onEditar(r); }}
-                >
-                  ✏️ Editar
-                </Button>
-              )}
-              {onEliminar && (
-                <Button
-                  variant="danger"
-                  size="sm"
-                  onClick={e => { e.stopPropagation(); onEliminar(r.id); }}
-                >
-                  🗑 Eliminar
-                </Button>
-              )}
-            </div>
-          )}
         </div>
       )}
     </div>

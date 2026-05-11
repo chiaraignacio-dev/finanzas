@@ -26,18 +26,58 @@
 
 .cardLista { margin: 0 16px 12px; }
 
+/* ✅ FIX: Estructura mejorada para evitar UI pisado */
 .filaDeuda {
   display        : flex;
-  justify-content: space-between;
-  align-items    : flex-start;
-  padding        : 10px 0;
-  border-bottom  : 1px solid var(--bd);
+  flex-direction : column;
   gap            : 8px;
+  padding        : 12px 0;
+  border-bottom  : 1px solid var(--bd);
+  position       : relative;
 }
 .filaDeuda:last-of-type { border-bottom: none; }
 
-.filaInfo   { flex: 1; min-width: 0; }
-.filaDesc   { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* ✅ NUEVO: Checkbox para selección masiva */
+.checkbox {
+  position   : absolute;
+  left       : -8px;
+  top        : 16px;
+  width      : 18px;
+  height     : 18px;
+  cursor     : pointer;
+  accent-color: var(--ac);
+}
+
+/* Contenedor principal de info + monto */
+.filaContenido {
+  display        : flex;
+  justify-content: space-between;
+  align-items    : flex-start;
+  gap            : 12px;
+  padding-left   : 24px; /* Espacio para el checkbox */
+}
+
+.filaInfo   { flex: 1; min-width: 0; cursor: pointer; }
+.filaDesc   { 
+  font-size: 13px; 
+  font-weight: 500; 
+  white-space: nowrap; 
+  overflow: hidden; 
+  text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ✅ NUEVO: Icono expandible */
+.expandIcon {
+  display     : inline-block;
+  font-size   : 10px;
+  color       : var(--tx3);
+  transition  : transform 0.2s ease;
+  flex-shrink : 0;
+}
+
 .filaMeta   { font-size: 11px; color: var(--tx3); margin-top: 2px; }
 .origen     { color: var(--tx3); }
 
@@ -49,6 +89,40 @@
   flex-shrink: 0;
 }
 .filaMonto { font-size: 14px; font-weight: 600; font-family: var(--font-mono); }
+
+/* ✅ NUEVO: Contenido expandido */
+.expandido {
+  background    : var(--bg2);
+  border-radius : 6px;
+  padding       : 10px 12px;
+  margin-left   : 24px;
+  display       : flex;
+  flex-direction: column;
+  gap           : 6px;
+  font-size     : 12px;
+}
+
+.expandidoRow {
+  display        : flex;
+  justify-content: space-between;
+  align-items    : center;
+}
+
+.expandidoLabel {
+  color      : var(--tx3);
+  font-weight: 500;
+}
+
+.expandidoValor {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color      : var(--tx2);
+}
+
+.expandidoDestacado {
+  color    : var(--ac);
+  font-size: 13px;
+}
 
 .filaTotalizadora {
   display        : flex;
@@ -83,10 +157,10 @@
 }
 
 .accionesDeuda {
-  display: flex;
-  gap    : 8px;
-  width  : 100%;
-  margin-top: 8px;
+  display   : flex;
+  gap       : 8px;
+  width     : 100%;
+  margin-left: 24px; /* Alineado con el contenido */
 }
 
 .pagoInline {
@@ -94,7 +168,7 @@
   flex-direction: column;
   gap           : 8px;
   width         : 100%;
-  margin-top    : 8px;
+  margin-left   : 24px; /* Alineado con el contenido */
 }
 
 .botonTotal {
@@ -110,8 +184,72 @@
   font-family: var(--font-sans);
 }
 
-.accionesDeuda { display: flex; gap: 8px; width: 100%; margin-top: 8px; }
-.pagoInline { display: flex; flex-direction: column; gap: 8px; width: 100%; margin-top: 8px; }
-.botonTotal { background: none; border: none; color: var(--ac2); font-size: 12px; cursor: pointer; text-align: center; width: 100%; padding: 4px; text-decoration: underline; font-family: var(--font-sans); }
+/* ✅ NUEVO: Footer flotante para pago masivo */
+.footerFlotante {
+  position  : fixed;
+  bottom    : 0;
+  left      : 0;
+  right     : 0;
+  background: var(--bg);
+  border-top: 2px solid var(--bd);
+  padding   : 12px 16px;
+  box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.1);
+  z-index   : 100;
+  animation : slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+  from { transform: translateY(100%); opacity: 0; }
+  to   { transform: translateY(0); opacity: 1; }
+}
+
+.footerContenido {
+  display       : flex;
+  flex-direction: column;
+  gap           : 10px;
+  max-width     : 600px;
+  margin        : 0 auto;
+}
+
+.footerInfo {
+  display        : flex;
+  justify-content: space-between;
+  align-items    : center;
+}
+
+.footerCantidad {
+  font-size  : 12px;
+  font-weight: 600;
+  color      : var(--tx2);
+}
+
+.footerTotal {
+  font-size  : 16px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  color      : var(--ac);
+}
+
+.footerAcciones {
+  display: flex;
+  gap    : 8px;
+}
 
 @keyframes girar { to { transform: rotate(360deg); } }
+
+/* Responsive: Desktop */
+@media (min-width: 768px) {
+  .footerFlotante {
+    padding: 16px 20px;
+  }
+  
+  .footerContenido {
+    flex-direction: row;
+    align-items   : center;
+    justify-content: space-between;
+  }
+  
+  .footerAcciones {
+    flex-shrink: 0;
+  }
+}

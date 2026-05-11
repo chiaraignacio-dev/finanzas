@@ -101,15 +101,19 @@ export async function confirmarPagoRecibido(params: {
     estado      : nuevoEstado,
   });
 
+  // ✅ CORREGIDO: Registrar como reintegro interno, NO como ingreso patrimonial
+  // Los reintegros NO deben aumentar el saldo disponible, solo concilian balances
   await sbPost('ingresos', {
-    user_id        : params.acreedorId,
-    descripcion    : `Cobro confirmado: ${deuda.descripcion}`,
-    monto          : params.monto,
-    tipo           : 'extra',
-    fecha_esperada : obtenerFechaISO(),
-    fecha_recibido : obtenerFechaISO(),
-    recibido       : true,
-    recurrente     : false,
+    user_id                 : params.acreedorId,
+    descripcion             : `Reintegro: ${deuda.descripcion}`,
+    monto                   : params.monto,
+    tipo                    : 'reintegro',
+    fecha_esperada          : obtenerFechaISO(),
+    fecha_recibido          : obtenerFechaISO(),
+    recibido                : true,
+    recurrente              : false,
+    es_reintegro            : true,
+    deuda_interpersonal_id  : params.deudaId,
   });
 }
 
