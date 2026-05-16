@@ -1,0 +1,30 @@
+{
+  "name": "MyFi",
+  "short_name": "MyFi",
+  "description": "Finanzas personales y compartidas",
+  "start_url": "/finanzas/",
+  "scope": "/finanzas/",
+  "display": "standalone",
+  "background_color": "#f7f9ff",
+  "theme_color": "#2563eb",
+  "icons": [
+    {
+      "src": "/finanzas/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/finanzas/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/finanzas/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
